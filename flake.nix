@@ -21,29 +21,50 @@
   };
 
   outputs = {
-    self,
     nixpkgs,
     home-manager,
-    nixpkgs-unstable,
-    plasma-manager,
     ...
-  } @ inputs: {
+  } @ inputs: let
+    system = "x86_64-linux";
+    username = "yashindo";
+
+    pkgs = import nixpkgs {
+      inherit system;
+      config.allowUnfree = true;
+    };
+
+    pkgsUnstable = import inputs.nixpkgs-unstable {
+      inherit system;
+      config.allowUnfree = true;
+    };
+  in {
     nixosConfigurations.nixos = nixpkgs.lib.nixosSystem {
-      system = "x86_64-linux";
-      specialArgs = {inherit inputs;};
+      inherit system;
+
+      specialArgs = {
+        inherit inputs pkgsUnstable;
+      };
+
       modules = [
-        ./hardware-configuration.nix
-        ./configuration.nix
+        ./hosts/hiraeth
 
         home-manager.nixosModules.home-manager
         {
           home-manager.useGlobalPkgs = true;
           home-manager.useUserPackages = true;
-          home-manager.extraSpecialArgs = {inherit inputs;};
+          home-manager.extraSpecialArgs = {
+            inherit inputs pkgsUnstable;
+          };
           home-manager.backupFileExtension = "backup";
-          home-manager.users.yashindo = import ./users/yashindo/home.nix;
+          home-manager.users.${username} = import ./home/yashindo;
         }
       ];
     };
+
+    devShells.${system} = import ./devshells {
+      inherit pkgs;
+    };
+
+    formatter.${system} = pkgs.alejandra;
   };
 }
