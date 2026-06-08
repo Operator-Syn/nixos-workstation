@@ -1,0 +1,86 @@
+# NixOS Modules
+
+Reusable system-level modules live here.
+
+These files describe behavior that can be imported by hosts. The `Hiraeth` host currently imports modules from `modules/nixos/` through `hosts/hiraeth/default.nix`.
+
+---
+
+## Layout
+
+```text
+modules/
+`-- nixos/
+    |-- core/             locale, Nix settings, security, zram
+    |-- desktop/          Plasma, audio, printing, display manager
+    |-- development/      Distrobox and system-level development support
+    |-- hardware/         reusable hardware-related modules
+    |-- users/            system user declarations
+    |-- networking.nix    NetworkManager
+    |-- packages.nix      system package list
+    |-- scripts.nix       helper commands
+    `-- virtualisation.nix Docker and libvirt
+```
+
+## Module Index
+
+| Area | Owns |
+| --- | --- |
+| `core/` | Nix settings, locale, sudo, polkit, zram |
+| `desktop/` | Plasma 6, SDDM, PipeWire, printing, XKB |
+| `development/` | Distrobox setup, declared mutable boxes, optional Python support, containers |
+| `hardware/` | Bluetooth and MSI hardware support |
+| `users/` | system users, shells, groups |
+| `packages.nix` | system-wide packages |
+| `scripts.nix` | `rebuild`, `update-hardware`, `nvrun`, `getGPU` |
+| `virtualisation.nix` | Docker and libvirt services |
+
+## Good Module Shape
+
+Optional modules should expose an enable option:
+
+```nix
+{
+  config,
+  lib,
+  ...
+}: let
+  cfg = config.modules.example;
+in {
+  options.modules.example.enable = lib.mkEnableOption "Example module";
+
+  config = lib.mkIf cfg.enable {
+    # system config here
+  };
+}
+```
+
+Always keep the option name close to the feature it controls.
+
+## Boundary Rules
+
+| If It Is... | Put It In... |
+| --- | --- |
+| Reusable system behavior | `modules/nixos/` |
+| Host-specific hardware or identity | `hosts/<name>/` |
+| User-session behavior | `home/` |
+| Project-specific tooling | `devshells/` |
+| Mutable dependency experiments | `modules/nixos/development/distrobox-*.nix` |
+
+## Development Modules
+
+| File | Owns |
+| --- | --- |
+| `development/distrobox.nix` | Distrobox package and Docker backend selection |
+| `development/distrobox-debian-dev.nix` | `debian-dev` assemble manifest and helper command |
+| `development/debian-container.nix` | Previous Docker-managed Debian container module, currently not imported by `hiraeth` |
+| `development/python-shell.nix` | Optional system-level Python shell support, currently disabled on `hiraeth` |
+
+The Distrobox base module and individual box declarations are kept separate so installing Distrobox is not coupled to creating a specific mutable development box.
+
+## Editing Notes
+
+- Keep modules focused on one concern.
+- Prefer imports over giant files.
+- Avoid putting personal desktop settings in system modules.
+- Avoid putting host-only values such as GPU bus IDs in reusable modules.
