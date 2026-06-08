@@ -133,7 +133,6 @@ in {
     };
 
     home.packages = [pkgs.libsixel];
-    # Preserving comment: logic for icon source
-    home.file.".local/share/icons/Executor_Skin_1.png".source = ../plasma-config/icons/Executor_Skin_1.png;
+    home.file.".local/share/icons/Executor_Skin_1.png".source = ../plasma/icons/Executor_Skin_1.png;
   };
 }
