@@ -19,6 +19,7 @@
     nerd-fonts.fira-mono
     openmpi
     # pipenv
+    claude-code
     vlc
     zoxide
     zoom-us

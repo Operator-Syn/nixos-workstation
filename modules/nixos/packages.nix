@@ -11,6 +11,7 @@
     git
     nil
     nixfmt-rfc-style
+    nodejs_24
     pavucontrol
     tree
 

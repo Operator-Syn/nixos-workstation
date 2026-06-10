@@ -49,6 +49,7 @@
 
         userSettings = {
           "workbench.iconTheme" = "vscode-icons";
+
           "editor.fontFamily" = "'Miracode', 'FiraCode Nerd Font', monospace";
           "editor.fontLigatures" = true;
           "editor.fontSize" = 15;
@@ -57,10 +58,6 @@
           "terminal.integrated.fontSize" = 15;
           "terminal.integrated.gpuAcceleration" = "on";
 
-          "saveConstantly.saveWithoutFormatting" = true;
-
-          "git.openRepositoryInParentFolders" = "always";
-
           "terminal.integrated.defaultProfile.linux" = "fish";
           "terminal.integrated.profiles.linux" = {
             fish = {
@@ -68,23 +65,41 @@
             };
           };
 
+          "saveConstantly.saveWithoutFormatting" = true;
+
+          "git.openRepositoryInParentFolders" = "always";
+
           "nix.enableLanguageServer" = true;
           "nix.serverPath" = "nil";
           "nix.formatterPath" = "alejandra";
 
           "nix.serverSettings" = {
             nil = {
-              formatting.command = ["alejandra"];
-              diagnostics.ignored = ["unused_binding"];
+              diagnostics = {
+                ignored = [
+                  "unused_binding"
+                ];
+              };
+
+              formatting = {
+                command = [
+                  "alejandra"
+                ];
+              };
             };
           };
 
           "[nix]" = {
-            editor.defaultFormatter = "jnoortheen.nix-ide";
-            editor.formatOnSave = true;
+            editor = {
+              defaultFormatter = "jnoortheen.nix-ide";
+              formatOnSave = true;
+            };
           };
 
-          "nix.extraPaths" = ["./."];
+          "nix.extraPaths" = [
+            "./."
+          ];
+          "claudeCode.preferredLocation" = "panel";
         };
       };
     };

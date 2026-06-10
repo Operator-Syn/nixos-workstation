@@ -6,6 +6,7 @@
 
     ../../modules/nixos/core
     ../../modules/nixos/desktop/plasma.nix
+    ../../modules/nixos/development/nix-ld.nix
     ../../modules/nixos/development/python-shell.nix
     ../../modules/nixos/development/distrobox.nix
     ../../modules/nixos/development/distrobox-debian-dev.nix

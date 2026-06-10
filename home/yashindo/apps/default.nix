@@ -10,12 +10,14 @@
     ./fastfetch.nix
     ./firefox.nix
     ./fish.nix
+    ./git.nix
     ./latex.nix
     ./spotify-player.nix
     ./starship.nix
     ./vscode.nix
     ./winboat.nix
     ./youtube-dl.nix
+    ./easyeffects-module.nix
   ];
 
   modules = {
@@ -29,11 +31,13 @@
     fastfetch.enable = true;
     firefox.enable = true;
     fish.enable = true;
+    git.enable = true;
     latex.enable = true;
     spotify-player.enable = false;
     starship.enable = true;
     vscode.enable = true;
     winboat.enable = true;
     youtube-dl.enable = true;
+    easyeffects.enable = true;
   };
 }
