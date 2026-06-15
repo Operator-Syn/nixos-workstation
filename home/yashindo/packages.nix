@@ -5,7 +5,6 @@
     cudaPackages.cudatoolkit
     exfat
     fzf
-    gparted
     inkscape
     inter
     inter-nerdfont
