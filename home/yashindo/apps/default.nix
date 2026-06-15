@@ -12,6 +12,7 @@
     ./fish.nix
     ./git.nix
     ./latex.nix
+    ./prisma.nix
     ./spotify-player.nix
     ./starship.nix
     ./vscode.nix
@@ -33,6 +34,7 @@
     fish.enable = true;
     git.enable = true;
     latex.enable = true;
+    prisma.enable = true;
     spotify-player.enable = false;
     starship.enable = true;
     vscode.enable = true;
