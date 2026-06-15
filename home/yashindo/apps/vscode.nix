@@ -31,12 +31,22 @@
           ++ [
             (pkgs.vscode-utils.buildVscodeMarketplaceExtension {
               mktplcRef = {
+                publisher = "teclado";
+                name = "vscode-nginx-format";
+                version = "0.0.6";
+                sha256 = "sha256-Z85xNByHieBXykztwYWFMnvU974Ewc3Y5Nt3+B2YZVg=";
+              };
+            })
+
+            (pkgs.vscode-utils.buildVscodeMarketplaceExtension {
+              mktplcRef = {
                 publisher = "mathematic";
                 name = "vscode-pdf";
                 version = "0.1.11";
                 sha256 = "sha256-h0liigU+oyHkZM9Kn3P8J/9IV8sgYI+fcpHV37WfNjk=";
               };
             })
+
             (pkgs.vscode-utils.buildVscodeMarketplaceExtension {
               mktplcRef = {
                 publisher = "samestep";
@@ -90,16 +100,21 @@
           };
 
           "[nix]" = {
-            editor = {
-              defaultFormatter = "jnoortheen.nix-ide";
-              formatOnSave = true;
-            };
+            "editor.defaultFormatter" = "jnoortheen.nix-ide";
+            "editor.formatOnSave" = true;
+          };
+
+          "[nginx]" = {
+            "editor.defaultFormatter" = "teclado.vscode-nginx-format";
           };
 
           "nix.extraPaths" = [
             "./."
           ];
+
           "claudeCode.preferredLocation" = "panel";
+
+          "chat.editing.autoAcceptDelay" = 3;
         };
       };
     };
