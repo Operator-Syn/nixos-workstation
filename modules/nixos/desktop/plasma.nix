@@ -1,4 +1,5 @@
 {
+  programs.dconf.enable = true;
   programs.firefox.enable = true;
 
   security.rtkit.enable = true;
