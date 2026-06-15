@@ -12,9 +12,16 @@
     nil
     nixfmt-rfc-style
     nodejs_24
+    bun
     pavucontrol
     tree
+    openssl
+    rustc
+    cargo
+    clippy
+    rustfmt
 
+    kdePackages.partitionmanager
     kdePackages.aurorae
     kdePackages.breeze
     kdePackages.kconfig
@@ -24,4 +31,6 @@
     kdePackages.polkit-kde-agent-1
     kdePackages.qttools
   ];
+
+
 }
