@@ -47,6 +47,29 @@
     rm "$TEMP_FILE"
   '';
 
+  update-system = pkgs.writeShellScriptBin "update-system" ''
+    interrupt_cleanup() {
+      sudo -k
+      echo -e "\n[!] Update interrupted. Credentials cleared."
+      exit 130
+    }
+
+    fail_cleanup() {
+      sudo -k
+      echo -e "\n[!] Update failed. Credentials cleared."
+      exit 1
+    }
+
+    trap interrupt_cleanup SIGINT SIGTERM
+
+    echo "Updating flake inputs..."
+    nix flake update --flake "$HOME/nix-config" --cores "$(nproc)" || fail_cleanup
+
+    ${rebuild}/bin/rebuild || fail_cleanup
+
+    sudo -k
+  '';
+
   rebuild = pkgs.writeShellScriptBin "rebuild" ''
     cleanup() {
       sudo -k
@@ -71,5 +94,6 @@ in {
     nvrun
     rebuild
     update-hardware
+    update-system
   ];
 }
