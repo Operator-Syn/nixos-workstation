@@ -12,7 +12,7 @@
       enableFishIntegration = true;
 
       settings = {
-        format = "[ λ ](bold yellow)[$username@$hostname:$directory]($style) $git_branch$git_status$python\n$character";
+        format = "[ λ ](bold yellow)[$username@$hostname:$directory]($style) $git_branch$git_status$python$nix_shell\n$character";
 
         add_newline = true;
 
@@ -52,7 +52,7 @@
 
         nix_shell = {
           symbol = "❄️ ";
-          format = "via [$symbol$state]($style) ";
+          format = "via [$symbol$name]($style) ";
         };
 
         git_branch = {
