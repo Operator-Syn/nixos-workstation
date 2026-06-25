@@ -1,0 +1,6 @@
+keys:
+  - &yashindo age19wulzy50n8c73csndcmg7wjmr7g22pl889ycln2fjd5md43g0gcqamj6hw
+
+creation_rules:
+  - path_regex: secrets/.*\.yaml$
+    age: *yashindo
