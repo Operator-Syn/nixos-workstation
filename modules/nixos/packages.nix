@@ -9,11 +9,13 @@
     easyeffects
     gamemode
     git
+    ripgrep
     nil
     nixfmt-rfc-style
     nodejs_24
     bun
     pavucontrol
+    tcpdump
     tree
     openssl
     rustc
