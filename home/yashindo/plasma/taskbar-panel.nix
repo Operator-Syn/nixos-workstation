@@ -25,7 +25,10 @@
             "org.kde.plasma.pager"
             {
               name = "org.kde.plasma.icontasks";
-              config.General.launchers = "applications:systemsettings.desktop,preferred://filemanager,applications:firefox.desktop,applications:brave-browser.desktop,applications:code.desktop,applications:Alacritty.desktop";
+              config.General = {
+                groupingStrategy = 0;
+                launchers = "applications:systemsettings.desktop,preferred://filemanager,applications:firefox.desktop,applications:brave-browser.desktop,applications:code.desktop,applications:Alacritty.desktop";
+              };
             }
             "org.kde.plasma.marginsseparator"
             "org.kde.plasma.systemtray"
