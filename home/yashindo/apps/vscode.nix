@@ -105,7 +105,7 @@
           };
 
           "[nginx]" = {
-            "editor.defaultFormatter" = "teclado.vscode-nginx-format";
+            "editor.defaultFormatter" = "ahmadalli.vscode-nginx-conf";
           };
 
           "nix.extraPaths" = [
