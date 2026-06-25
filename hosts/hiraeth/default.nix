@@ -5,6 +5,7 @@
     ./nvidia.nix
 
     ../../modules/nixos/core
+    ../../modules/nixos/desktop/audio-tools.nix
     ../../modules/nixos/desktop/plasma.nix
 
     ../../modules/nixos/development/nix-ld.nix
@@ -20,6 +21,7 @@
     ../../modules/nixos/netbird.nix
     ../../modules/nixos/packages.nix
     ../../modules/nixos/users/yashindo.nix
+    ../../modules/nixos/kvm-manager.nix
     ../../modules/nixos/virtualisation.nix
     ../../modules/nixos/steam.nix
   ];
@@ -29,6 +31,7 @@
   modules = {
     netbird.enable = true;
     steam.enable = true;
+    kvm-manager.enable = true;
 
     distrobox.debian-dev.enable = true;
     # debian-container.enable = true;
