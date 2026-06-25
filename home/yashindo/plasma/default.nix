@@ -4,6 +4,7 @@
     ./desktop-settings.nix
     ./icons/candy-icons.nix
     ./magic-lamp.nix
+    ./prevent-sleep.nix
     ./session-manager/session-manager.nix
     ./taskbar-panel.nix
     ./wallpaper/scarlet-tree.nix
