@@ -16,10 +16,11 @@ modules/
     |-- development/      Distrobox and system-level development support
     |-- hardware/         reusable hardware-related modules
     |-- users/            system user declarations
+    |-- kvm-manager.nix   KVM/libvirt and virt-manager
     |-- networking.nix    NetworkManager
     |-- packages.nix      system package list
     |-- scripts.nix       helper commands
-    `-- virtualisation.nix Docker and libvirt
+    `-- virtualisation.nix Docker
 ```
 
 ## Module Index
@@ -33,7 +34,8 @@ modules/
 | `users/` | system users, shells, groups |
 | `packages.nix` | system-wide packages |
 | `scripts.nix` | `rebuild`, `update-hardware`, `nvrun`, `getGPU` |
-| `virtualisation.nix` | Docker and libvirt services |
+| `kvm-manager.nix` | KVM/libvirt services and virt-manager |
+| `virtualisation.nix` | Docker service |
 
 ## Good Module Shape
 
