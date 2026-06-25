@@ -44,7 +44,8 @@ General-purpose language runtimes such as Node and Python should usually stay ou
 | --- | --- |
 | Bootloader and kernel | `hosts/` |
 | Hardware and GPU drivers | `hosts/` or `modules/nixos/hardware/` |
-| Docker/libvirt daemons | `modules/nixos/virtualisation.nix` |
+| Docker daemon | `modules/nixos/virtualisation.nix` |
+| KVM/libvirt and virt-manager | `modules/nixos/kvm-manager.nix` |
 | Distrobox container declarations | `modules/nixos/development/` |
 | Users and groups | `modules/nixos/users/` |
 | System security settings | `modules/nixos/core/` |
