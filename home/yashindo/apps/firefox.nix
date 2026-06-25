@@ -4,7 +4,17 @@
   config,
   inputs,
   ...
-}: {
+}: let
+  firefoxPackage = pkgs.firefox-esr.overrideAttrs (old: {
+    desktopItem = old.desktopItem.override {
+      name = "firefox";
+      desktopName = "Firefox";
+      exec = "firefox-esr --name firefox %U";
+      icon = "firefox";
+      startupWMClass = "firefox";
+    };
+  });
+in {
   options.modules.firefox.enable = lib.mkEnableOption "Firefox";
 
   config = lib.mkIf config.modules.firefox.enable {
@@ -14,24 +24,11 @@
 
     programs.firefox = {
       enable = true;
+      package = firefoxPackage;
 
-      # Global policies for the Firefox installation
       policies = {
         DisableAppUpdate = false;
         DontCheckDefaultBrowser = true;
-
-        # This is the key to bypassing manual activation
-        ExtensionSettings = {
-          "adguardadblocker@adguard.com" = {
-            installation_mode = "force_installed";
-            install_url = "https://addons.mozilla.org/firefox/downloads/latest/adguard-adblocker/latest.xpi";
-          };
-
-          "plasma-browser-integration@kde.org" = {
-            installation_mode = "force_installed";
-            install_url = "https://addons.mozilla.org/firefox/downloads/latest/plasma-integration/latest.xpi";
-          };
-        };
       };
 
       profiles.default = {
@@ -51,7 +48,7 @@
           "browser.startup.page" = 3;
           "shell.checkDefaultBrowser" = false;
 
-          "browser.tabs.drawInTitlebar" = false; # you already have this as true — flip it
+          "browser.tabs.drawInTitlebar" = false;
           "browser.titlebar-x11-use-system-default" = true;
 
           # NATIVE VERTICAL TABS & SIDEBAR
