@@ -12,8 +12,14 @@
     ./fish.nix
     ./git.nix
     ./latex.nix
+    ./libreoffice.nix
+    ./obs-studio.nix
     ./prisma.nix
+    ./castersoundboard.nix
+    ./spotify.nix
+    ./spotifyd.nix
     ./spotify-player.nix
+    ./ssh.nix
     ./starship.nix
     ./vscode.nix
     ./winboat.nix
@@ -34,8 +40,14 @@
     fish.enable = true;
     git.enable = true;
     latex.enable = true;
+    libreoffice.enable = true;
+    obs-studio.enable = true;
     prisma.enable = true;
+    castersoundboard.enable = true;
+    spotify.enable = true;
+    spotifyd.enable = true;
     spotify-player.enable = false;
+    ssh.enable = true;
     starship.enable = true;
     vscode.enable = true;
     winboat.enable = true;
