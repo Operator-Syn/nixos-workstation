@@ -1,6 +1,7 @@
 {inputs, ...}: {
   imports = [
     inputs.plasma-manager.homeModules.plasma-manager
+    inputs.sops-nix.homeManagerModules.sops
     ./apps
     ./packages.nix
     ./plasma
