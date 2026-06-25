@@ -1,6 +1,13 @@
-{
+{pkgs, ...}: {
   programs.dconf.enable = true;
-  programs.firefox.enable = true;
+  programs.firefox = {
+    enable = true;
+    package = pkgs.firefox-esr;
+  };
+
+  environment.plasma6.excludePackages = with pkgs.kdePackages; [
+    discover
+  ];
 
   security.rtkit.enable = true;
 
