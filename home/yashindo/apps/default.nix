@@ -4,6 +4,7 @@
     ./alacritty-widget.nix
     ./brave.nix
     ./cava.nix
+    ./audacity.nix
     ./direnv.nix
     ./discord.nix
     ./discord-pro.nix
@@ -32,6 +33,7 @@
     alacritty-widget.enable = false;
     brave.enable = true;
     cava.enable = true;
+    audacity.enable = true;
     direnv.enable = true;
     discord.enable = true;
     discord-pro.enable = true;
