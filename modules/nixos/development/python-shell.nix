@@ -38,7 +38,9 @@ in {
     };
 
     environment.systemPackages = with pkgs; [
-      python314
+      (python314.withPackages (ps: [
+        ps.tkinter
+      ]))
       pipenv
       gcc
       gnumake
