@@ -18,6 +18,7 @@
     tcpdump
     tree
     openssl
+    wl-clipboard
     rustc
     cargo
     clippy
