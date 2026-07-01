@@ -8,7 +8,9 @@
 
   config = lib.mkIf config.modules.obs-studio.enable {
     home.packages = with pkgs; [
-      obs-studio
+      (obs-studio.override {
+        cudaSupport = true;
+      })
     ];
   };
 }
