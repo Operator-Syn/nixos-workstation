@@ -13,6 +13,29 @@
       NoDisplay=true
     '';
 
+    # Clean up old immutable VS Code extensions symlink.
+    #
+    # This fixes stale state where:
+    #   ~/.vscode/extensions -> /nix/store/.../.vscode/extensions
+    #
+    # With mutableExtensionsDir = true, ~/.vscode/extensions needs to be a
+    # normal writable directory so Home Manager can place individual extension
+    # links inside it.
+    home.activation.ensureMutableVscodeExtensionsDir = lib.hm.dag.entryBefore ["linkGeneration"] ''
+      vscode_extensions="${config.home.homeDirectory}/.vscode/extensions"
+
+      if [ -L "$vscode_extensions" ]; then
+        target="$(${pkgs.coreutils}/bin/readlink -f "$vscode_extensions")"
+
+        case "$target" in
+          /nix/store/*)
+            $DRY_RUN_CMD ${pkgs.coreutils}/bin/rm "$vscode_extensions"
+            $DRY_RUN_CMD ${pkgs.coreutils}/bin/mkdir -p "$vscode_extensions"
+            ;;
+        esac
+      fi
+    '';
+
     programs.vscode = {
       enable = true;
       mutableExtensionsDir = true;
@@ -31,10 +54,10 @@
           ++ [
             (pkgs.vscode-utils.buildVscodeMarketplaceExtension {
               mktplcRef = {
-                publisher = "teclado";
-                name = "vscode-nginx-format";
-                version = "0.0.6";
-                sha256 = "sha256-Z85xNByHieBXykztwYWFMnvU974Ewc3Y5Nt3+B2YZVg=";
+                publisher = "ahmadalli";
+                name = "vscode-nginx-conf";
+                version = "0.3.1";
+                sha256 = "sha256-wEz5DNWFm69zZDPILvDpLm3wJsqmrMa6ikYIClQOuZI=";
               };
             })
 
@@ -71,7 +94,7 @@
           "terminal.integrated.defaultProfile.linux" = "fish";
           "terminal.integrated.profiles.linux" = {
             fish = {
-              path = "${pkgs.fish}/bin/fish";
+              path = "/nix/store/yf9zzj7xryrniqd6zi8gglzq8a908wqj-fish-4.2.1/bin/fish";
             };
           };
 
@@ -115,6 +138,8 @@
           "claudeCode.preferredLocation" = "panel";
 
           "chat.editing.autoAcceptDelay" = 3;
+
+          "vscord.app.name" = "Visual Studio Code";
         };
       };
     };
