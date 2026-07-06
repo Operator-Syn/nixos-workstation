@@ -60,7 +60,9 @@
           home-manager.extraSpecialArgs = {
             inherit inputs pkgsUnstable;
           };
-          home-manager.backupFileExtension = "backup";
+          # Avoid collisions with old application-managed *.backup files
+          # when Home Manager needs to migrate paths into managed symlinks.
+          home-manager.backupFileExtension = "hm-backup";
           home-manager.users.${username} = import ./home/yashindo;
         }
       ];
