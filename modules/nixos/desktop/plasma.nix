@@ -14,7 +14,15 @@
   services = {
     desktopManager.plasma6.enable = true;
     displayManager.sddm.enable = true;
-    printing.enable = true;
+    printing = {
+      enable = true;
+      drivers = [pkgs.cnijfilter2];
+    };
+    avahi = {
+      enable = true;
+      nssmdns4 = true;
+      openFirewall = true;
+    };
     pulseaudio.enable = false;
 
     pipewire = {
