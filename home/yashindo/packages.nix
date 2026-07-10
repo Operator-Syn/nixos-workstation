@@ -19,6 +19,7 @@
     openmpi
     # pipenv
     claude-code
+    ripgrep
     vlc
     zoxide
     zoom-us
