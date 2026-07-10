@@ -41,6 +41,19 @@ in {
             };
           };
 
+          node1-gil = {
+            hostname = "node1.internal.netbird-network";
+            user = "gil";
+            port = 2016;
+            identityFile = "${config.home.homeDirectory}/.ssh/id_ed25519";
+            identitiesOnly = true;
+
+            extraOptions = {
+              PreferredAuthentications = "publickey";
+              PasswordAuthentication = "no";
+            };
+          };
+
           "*" = {
             addKeysToAgent = "yes";
             compression = true;
