@@ -94,7 +94,7 @@
           "terminal.integrated.defaultProfile.linux" = "fish";
           "terminal.integrated.profiles.linux" = {
             fish = {
-              path = "/nix/store/yf9zzj7xryrniqd6zi8gglzq8a908wqj-fish-4.2.1/bin/fish";
+              path = "${pkgs.fish}/bin/fish";
             };
           };
 
@@ -140,6 +140,8 @@
           "chat.editing.autoAcceptDelay" = 3;
 
           "vscord.app.name" = "Visual Studio Code";
+
+          "chatgpt.reviewDelivery" = "detached";
         };
       };
     };
