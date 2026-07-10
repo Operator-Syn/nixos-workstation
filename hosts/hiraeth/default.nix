@@ -19,6 +19,7 @@
 
     ../../modules/nixos/networking.nix
     ../../modules/nixos/netbird.nix
+    ../../modules/nixos/ollama.nix
     ../../modules/nixos/packages.nix
     ../../modules/nixos/users/yashindo.nix
     ../../modules/nixos/kvm-manager.nix
@@ -30,6 +31,7 @@
 
   modules = {
     netbird.enable = true;
+    ollama.enable = true;
     steam.enable = true;
     kvm-manager.enable = true;
 
