@@ -12,6 +12,7 @@
     ./firefox.nix
     ./fish.nix
     ./git.nix
+    ./goose.nix
     ./latex.nix
     ./libreoffice.nix
     ./obs-studio.nix
@@ -41,6 +42,7 @@
     firefox.enable = true;
     fish.enable = true;
     git.enable = true;
+    goose.enable = true;
     latex.enable = true;
     libreoffice.enable = true;
     obs-studio.enable = true;
