@@ -15,6 +15,9 @@
     nodejs_24
     bun
     pavucontrol
+    kdePackages.kamoso
+    cobang
+    zbar
     tcpdump
     tree
     openssl
@@ -34,6 +37,4 @@
     kdePackages.polkit-kde-agent-1
     kdePackages.qttools
   ];
-
-
 }
