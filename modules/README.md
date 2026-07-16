@@ -30,7 +30,7 @@ modules/
 | `core/` | Nix settings, locale, sudo, polkit, zram |
 | `desktop/` | Plasma 6, SDDM, PipeWire, printing, XKB |
 | `development/` | Distrobox setup, declared mutable boxes, optional Python support, containers |
-| `hardware/` | Bluetooth and optional ASUS/MSI hardware support |
+| `hardware/` | Bluetooth and reusable ASUS hardware support |
 | `users/` | system users, shells, groups |
 | `packages.nix` | system-wide packages |
 | `scripts.nix` | `rebuild`, `update-hardware`, `nvrun`, `getGPU` |
@@ -86,3 +86,14 @@ The Distrobox base module and individual box declarations are kept separate so i
 - Prefer imports over giant files.
 - Avoid putting personal desktop settings in system modules.
 - Avoid putting host-only values such as GPU bus IDs in reusable modules.
+
+## Hiraeth ASUS Controls
+
+`hardware/asus.nix` owns the native Linux ASUS stack: `asusd`,
+`asusctl`, ROG Control Center, and `supergfxd`. Keep host-specific kernel and
+NVIDIA PRIME settings in `hosts/hiraeth/`.
+
+KDE Plasma's `power-profiles-daemon` owns the generic platform profile. ASUS
+controls remain responsible for firmware-specific features such as charge
+thresholds, keyboard lighting, fan curves, and Armoury features. Do not add
+Windows G-Helper, Wine, or a second GPU-switching daemon to this stack.
