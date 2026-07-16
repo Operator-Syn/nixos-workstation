@@ -12,6 +12,14 @@ bun mcp/src/server.ts
 
 The server communicates through stdio and does not listen on a network port.
 
+Graphify is a separate read-only MCP for repository discovery. Its Python environment is managed by Pipenv from `Pipfile.lock`; it does not grant Graphify patch, validation, or commit authority. Rebuild the graph, add the repository-local static Nix relationships, and generate HTML with:
+
+```sh
+./scripts/rebuild_graphify.sh
+```
+
+The rebuild script forces a full extraction to replace stale graph IDs, runs the Nix adapter, and exports HTML. Then query it with `pipenv run graphify query "your question"`. Nix evaluation remains authoritative; run `nix flake check` separately to validate the configuration.
+
 ## Authority model
 
 - Read tools inspect the repository, Nix flake, and Git state.
