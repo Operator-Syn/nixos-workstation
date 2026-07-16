@@ -6,6 +6,7 @@
 
     ../../modules/nixos/core
     ../../modules/nixos/desktop/audio-tools.nix
+    ../../modules/nixos/desktop/obs-studio.nix
     ../../modules/nixos/desktop/plasma.nix
 
     ../../modules/nixos/development/nix-ld.nix
@@ -15,6 +16,7 @@
     # ../../modules/nixos/development/debian-container.nix
 
     ../../modules/nixos/hardware/bluetooth.nix
+    ../../modules/nixos/hardware/asus.nix
     ../../modules/nixos/hardware/msi.nix
 
     ../../modules/nixos/networking.nix
@@ -39,6 +41,8 @@
     # debian-container.enable = true;
 
     python-shell.enable = true;
+    asus.enable = true;
+    msi.enable = false;
   };
 
   system.stateVersion = "25.11";
