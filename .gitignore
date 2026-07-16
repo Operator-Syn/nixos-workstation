@@ -1,2 +1,6 @@
 # Bun dependencies are local installation artifacts.
 node_modules/
+
+# Pipenv and Graphify are project-local development artifacts.
+.venv/
+graphify-out/
