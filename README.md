@@ -62,6 +62,16 @@ flake.nix
 
 This repository provides a local stdio MCP server for repository-aware NixOS work. It can inspect the flake, prepare isolated patches, apply explicitly approved file changes, validate the flake, and create separately approved one-file commits. It cannot run privileged system activation or arbitrary shell commands. See [`mcp/README.md`](mcp/README.md) for the authority model and setup.
 
+## Project Graphify
+
+Graphify is available as a Pipenv-managed, read-only discovery MCP alongside the project MCP. Install the locked environment with `pipenv install --deploy`, then rebuild the graph and add the repository-local Nix relationships with:
+
+```sh
+./scripts/rebuild_graphify.sh
+```
+
+The script performs a forced full extraction so older pre-`#1504` node IDs are replaced, merges the Nix adapter output, and exports HTML. Query it with `pipenv run graphify query "your question"`. Graph output stays in the ignored `graphify-out/` directory, and `.graphifyignore` excludes secrets and assistant configuration. The Nix adapter records source-level imports, flake wiring, and `inputs.<name>` usage without evaluating the flake; Nix remains authoritative and is validated with `nix flake check`.
+
 ## Working Rules
 
 - Keep machine-specific values in `hosts/`.
