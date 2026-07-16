@@ -106,3 +106,24 @@ nvidia-uvm.ko
 Keep the previous stable generation in GRUB until `modinfo asus-armoury`,
 `nvidia-smi`, `asusctl`, and ROG Control Center have been verified after a
 reboot.
+
+### Control boundaries
+
+Hiraeth uses native Linux controls on NixOS:
+
+```text
+asus-armoury -> asusd/asusctl + ROG Control Center
+supergfxd    -> manual Integrated, Hybrid, or MUX GPU mode changes
+NVIDIA PRIME -> per-application dGPU rendering in Hybrid mode
+Plasma PPD   -> Silent, Balanced, and Performance platform profiles
+```
+
+G-Helper is a Windows-only application that relies on the Windows ASUS System
+Control Interface driver. Use it only from the Windows installation; do not
+run it through Wine or a virtual machine on NixOS.
+
+Keep GPU-mode changes manual. Before changing Integrated or MUX mode, record
+the active NixOS generation and verify Hybrid mode, internal and external
+displays, `nvidia-offload`, and suspend/resume. If graphics fail after a mode
+change, boot the previous GRUB generation and return to Hybrid mode before
+trying another change.
