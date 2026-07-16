@@ -11,6 +11,10 @@
 
   security.rtkit.enable = true;
 
+  # Plasma exposes this D-Bus service in its power UI. It is the sole owner of
+  # the generic kernel platform profile; ASUS-specific controls stay in asusd.
+  services.power-profiles-daemon.enable = true;
+
   services = {
     desktopManager.plasma6.enable = true;
     displayManager.sddm.enable = true;
