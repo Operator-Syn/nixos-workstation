@@ -11,3 +11,8 @@ approval_mode = "approve"
 
 [mcp_servers.nix-config-project.tools.git_commit_files]
 approval_mode = "approve"
+
+[mcp_servers.graphify]
+command = "pipenv"
+args = ["run", "python", "-m", "graphify.serve", "graphify-out/graph.json"]
+cwd = "/home/yashindo/nix-config"
