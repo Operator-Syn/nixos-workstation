@@ -1,5 +1,7 @@
-{...}: {
+{inputs, ...}: {
   imports = [
+    inputs.aagl.nixosModules.default
+
     ./hardware-configuration.nix
     ./boot.nix
     ./nvidia.nix
@@ -17,7 +19,6 @@
 
     ../../modules/nixos/hardware/bluetooth.nix
     ../../modules/nixos/hardware/asus.nix
-    ../../modules/nixos/hardware/msi.nix
 
     ../../modules/nixos/networking.nix
     ../../modules/nixos/netbird.nix
@@ -28,6 +29,8 @@
     ../../modules/nixos/virtualisation.nix
     ../../modules/nixos/steam.nix
   ];
+
+  nix.settings = inputs.aagl.nixConfig;
 
   networking.hostName = "Hiraeth";
 
@@ -42,7 +45,6 @@
 
     python-shell.enable = true;
     asus.enable = true;
-    msi.enable = false;
   };
 
   system.stateVersion = "25.11";
