@@ -4,7 +4,6 @@
   ...
 }: {
   boot.kernelParams = [
-    "nvidia_drm.modeset=1"
     "nvidia_drm.fbdev=1"
     "nvidia.NVreg_PreserveVideoMemoryAllocations=1"
   ];
@@ -16,19 +15,14 @@
     enable32Bit = true;
     extraPackages = with pkgs; [
       # Video Acceleration (VA-API/VDPAU)
-      intel-media-driver # For modern Intel iGPU video
-      intel-vaapi-driver # For older Intel video compatibility
       nvidia-vaapi-driver # For NVIDIA video decoding
       libvdpau-va-gl # Bridge for older apps
 
       # Compute (OpenCL/Vulkan)
-      intel-compute-runtime # Enables OpenCL on Intel (essential for some AI/render apps)
       vulkan-loader # Ensures Vulkan ICDs are visible to applications
       vulkan-validation-layers # Useful for development and stability
     ];
     extraPackages32 = with pkgs.pkgsi686Linux; [
-      intel-media-driver
-      intel-vaapi-driver
       libvdpau-va-gl
     ];
   };
@@ -39,11 +33,14 @@
     powerManagement.enable = false;
     powerManagement.finegrained = true;
 
-    open = false;
+    # The RTX 4050 is an Ada GPU supported by NVIDIA's open kernel modules.
+    # The open path is required for compatibility with the Armoury-capable
+    # kernel selected in hosts/hiraeth/boot.nix.
+    open = true;
 
     nvidiaSettings = true;
 
-    package = config.boot.kernelPackages.nvidiaPackages.stable;
+    package = config.boot.kernelPackages.nvidiaPackages.latest;
 
     prime = {
       sync.enable = false;
@@ -51,7 +48,7 @@
         enable = true;
         enableOffloadCmd = true;
       };
-      intelBusId = "PCI:0:2:0";
+      amdgpuBusId = "PCI:6:0:0";
       nvidiaBusId = "PCI:1:0:0";
     };
   };
