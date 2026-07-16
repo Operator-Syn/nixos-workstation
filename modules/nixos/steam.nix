@@ -9,6 +9,9 @@
     lib.mkEnableOption "Steam gaming support";
 
   config = lib.mkIf config.modules.steam.enable {
+    programs.anime-game-launcher.enable = true;
+    programs.honkers-railway-launcher.enable = true;
+
     programs.steam = {
       enable = true;
 
@@ -32,8 +35,17 @@
 
     environment.systemPackages = with pkgs; [
       gamescope
+      lutris
       mangohud
       protonup-qt
+
+      (writeShellScriptBin "genshin-launcher" ''
+        exec nvidia-offload ${anime-game-launcher}/bin/anime-game-launcher "$@"
+      '')
+
+      (writeShellScriptBin "hsr-launcher" ''
+        exec nvidia-offload ${honkers-railway-launcher}/bin/honkers-railway-launcher "$@"
+      '')
     ];
   };
 }
