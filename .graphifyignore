@@ -1,0 +1,32 @@
+# Never index repository secrets or assistant configuration.
+secrets/
+.sops.yaml
+.codex/
+.agents/
+
+# Never index VCS metadata or local environments.
+.git/
+.venv/
+node_modules/
+.direnv/
+
+# Keep Graphify output and caches local.
+graphify-out/
+result
+result-*/
+
+# Skip generated and machine-local artifacts.
+*.backup
+*.hm-backup
+*.qcow2
+*.img
+*.iso
+
+# Keep the default local build deterministic and API-free.
+*.md
+*.png
+*.svg
+*.desktop
+*.json
+*.toml
+*.yaml
