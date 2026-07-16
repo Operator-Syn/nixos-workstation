@@ -30,7 +30,7 @@ modules/
 | `core/` | Nix settings, locale, sudo, polkit, zram |
 | `desktop/` | Plasma 6, SDDM, PipeWire, printing, XKB |
 | `development/` | Distrobox setup, declared mutable boxes, optional Python support, containers |
-| `hardware/` | Bluetooth and MSI hardware support |
+| `hardware/` | Bluetooth and optional ASUS/MSI hardware support |
 | `users/` | system users, shells, groups |
 | `packages.nix` | system-wide packages |
 | `scripts.nix` | `rebuild`, `update-hardware`, `nvrun`, `getGPU` |
