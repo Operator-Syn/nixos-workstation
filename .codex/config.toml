@@ -1,0 +1,13 @@
+[mcp_servers.nix-config-project]
+command = "bun"
+args = ["mcp/src/server.ts"]
+cwd = "/home/yashindo/nix-config"
+
+[mcp_servers.nix-config-project.env]
+NIX_CONFIG_MCP_ROOT = "/home/yashindo/nix-config"
+
+[mcp_servers.nix-config-project.tools.apply_approved_patch]
+approval_mode = "approve"
+
+[mcp_servers.nix-config-project.tools.git_commit_files]
+approval_mode = "approve"
