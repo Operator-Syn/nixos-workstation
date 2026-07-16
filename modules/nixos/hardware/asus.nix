@@ -7,9 +7,9 @@
 in {
   options.modules.asus.enable = lib.mkEnableOption "ASUS laptop hardware support";
 
-  # ASUS/ROG Control Center provides the Armoury Crate-like controls exposed
-  # by the laptop firmware on Linux (profiles, fans, charge limits, and RGB
-  # where the model supports them).
+  # asusd and ROG Control Center own ASUS-specific firmware controls: fan
+  # curves, charge limits, keyboard lighting, and Armoury features. KDE's
+  # power-profiles-daemon owns the generic platform-profile endpoint.
   config = lib.mkIf cfg.enable {
     # This module is built by the newer kernels that support ASUS Armoury.
     # Load it early so asusd and ROG Control Center can use the advanced
@@ -21,17 +21,19 @@ in {
       enableUserService = true;
     };
 
+    # The packaged asusd unit has no [Install] section, so merely adding its
+    # package leaves it linked but inactive. Start the packaged D-Bus service
+    # with the normal multi-user boot target.
+    systemd.services.asusd.wantedBy = ["multi-user.target"];
+
     programs.rog-control-center = {
       enable = true;
       autoStart = true;
     };
 
-    # This NixOS unit is linked but not enabled by default in the current
-    # asusctl package. Start it at boot so its DBus API is available to ROG
-    # Control Center.
-    systemd.services.asusd.wantedBy = ["multi-user.target"];
-
-    # Provide the GPU mode/status DBus service used by ROG Control Center.
+    # Keep GPU-mode changes in one native daemon. PRIME offload remains
+    # configured by the host NVIDIA module; no AC/battery mode automation is
+    # configured here.
     services.supergfxd.enable = true;
   };
 }
