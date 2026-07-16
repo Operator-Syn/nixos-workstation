@@ -58,6 +58,10 @@ flake.nix
         `-- devshells/default.nix
 ```
 
+## Project MCP
+
+This repository provides a local stdio MCP server for repository-aware NixOS work. It can inspect the flake, prepare isolated patches, apply explicitly approved file changes, validate the flake, and create separately approved one-file commits. It cannot run privileged system activation or arbitrary shell commands. See [`mcp/README.md`](mcp/README.md) for the authority model and setup.
+
 ## Working Rules
 
 - Keep machine-specific values in `hosts/`.
