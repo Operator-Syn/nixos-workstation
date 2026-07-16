@@ -80,3 +80,29 @@ Review changes carefully before committing, especially anything involving filesy
 ```sh
 sudo nixos-rebuild switch --flake ~/nix-config#nixos --cores "$(nproc)" --show-trace
 ```
+
+## Hiraeth ASUS and NVIDIA Compatibility
+
+Hiraeth is an ASUS TUF Gaming A16 FA607NUQ with AMD integrated graphics and
+an NVIDIA RTX 4050-class discrete GPU. Its ASUS Armoury controls require the
+newer kernel package set, while the proprietary NVIDIA module pairing used by
+the stable kernel does not provide a compatible Armoury-capable generation.
+
+The host therefore uses `pkgsUnstable.linuxPackages_latest` together with
+`hardware.nvidia.open = true` and the matching latest NVIDIA package from that
+kernel package set. Both the `asus-armoury` module and the NVIDIA modules must
+be present in the built generation before switching to it.
+
+Before activation, verify the candidate generation contains:
+
+```text
+asus-armoury.ko
+nvidia.ko
+nvidia-modeset.ko
+nvidia-drm.ko
+nvidia-uvm.ko
+```
+
+Keep the previous stable generation in GRUB until `modinfo asus-armoury`,
+`nvidia-smi`, `asusctl`, and ROG Control Center have been verified after a
+reboot.
