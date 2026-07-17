@@ -9,6 +9,11 @@
   config = lib.mkIf config.modules.taskbar-panel.enable {
     home.file.".local/share/icons/NixOS.svg".source = ./icons/NixOS.svg;
 
+    xdg.mimeApps = {
+      enable = true;
+      defaultApplications."inode/directory" = ["org.kde.dolphin.desktop"];
+    };
+
     programs.plasma = {
       enable = true;
       overrideConfig = true;
@@ -27,7 +32,14 @@
               name = "org.kde.plasma.icontasks";
               config.General = {
                 groupingStrategy = 0;
-                launchers = "applications:systemsettings.desktop,preferred://filemanager,applications:firefox.desktop,applications:brave-browser.desktop,applications:code.desktop,applications:Alacritty.desktop";
+                launchers = [
+                  "applications:systemsettings.desktop"
+                  "applications:org.kde.dolphin.desktop"
+                  "applications:firefox.desktop"
+                  "applications:brave-browser.desktop"
+                  "applications:code.desktop"
+                  "applications:Alacritty.desktop"
+                ];
               };
             }
             "org.kde.plasma.marginsseparator"
