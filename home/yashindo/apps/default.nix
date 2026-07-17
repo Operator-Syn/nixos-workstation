@@ -54,7 +54,7 @@
     ssh.enable = true;
     starship.enable = true;
     vscode.enable = true;
-    winboat.enable = true;
+    winboat.enable = false;
     youtube-dl.enable = true;
     easyeffects.enable = true;
   };
