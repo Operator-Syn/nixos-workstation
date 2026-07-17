@@ -1,6 +1,7 @@
 # vscode.nix
 {
   pkgs,
+  pkgsUnstable,
   lib,
   config,
   ...
@@ -38,6 +39,7 @@
 
     programs.vscode = {
       enable = true;
+      package = pkgsUnstable.vscode;
       mutableExtensionsDir = true;
 
       profiles.default = {
@@ -142,6 +144,19 @@
           "vscord.app.name" = "Visual Studio Code";
 
           "chatgpt.reviewDelivery" = "detached";
+
+          "files.autoSave" = "afterDelay";
+
+          "json.schemaDownload.trustedDomains" = {
+            "https://schemastore.azurewebsites.net/" = true;
+            "https://raw.githubusercontent.com/microsoft/vscode/" = true;
+            "https://raw.githubusercontent.com/devcontainers/spec/" = true;
+            "https://www.schemastore.org/" = true;
+            "https://json.schemastore.org/" = true;
+            "https://json-schema.org/" = true;
+            "https://developer.microsoft.com/json-schemas/" = true;
+            "https://biomejs.dev" = true;
+          };
         };
       };
     };
