@@ -44,6 +44,10 @@
       lutris
       mangohud
       protonup-qt
+      wineWowPackages.waylandFull
+      winetricks
+      cabextract
+      p7zip
 
       (writeShellScriptBin "genshin-launcher" ''
         exec nvidia-offload ${anime-game-launcher}/bin/anime-game-launcher "$@"
