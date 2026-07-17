@@ -5,10 +5,16 @@
   config,
   ...
 }: {
+  imports = [
+    ./steam/protontricks.nix
+  ];
+
   options.modules.steam.enable =
     lib.mkEnableOption "Steam gaming support";
 
   config = lib.mkIf config.modules.steam.enable {
+    modules.steam.protontricks.enable = lib.mkDefault true;
+
     programs.anime-game-launcher.enable = true;
     programs.honkers-railway-launcher.enable = true;
 
