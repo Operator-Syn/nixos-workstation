@@ -33,6 +33,11 @@
     powerManagement.enable = false;
     powerManagement.finegrained = true;
 
+    # Enable NVIDIA Dynamic Boost on AC power. Without nvidia-powerd, this
+    # laptop remains at its 40 W base limit instead of using its firmware
+    # performance envelope under GPU load.
+    dynamicBoost.enable = true;
+
     # The RTX 4050 is an Ada GPU supported by NVIDIA's open kernel modules.
     # The open path is required for compatibility with the Armoury-capable
     # kernel selected in hosts/hiraeth/boot.nix.
