@@ -64,7 +64,7 @@
     export XDG_CACHE_HOME="$PRO_CACHE"
     export XDG_DATA_HOME="$PRO_DATA"
 
-    exec ${pkgs.discord}/bin/discord "$@"
+    exec nvidia-offload ${pkgs.discord}/bin/discord "$@"
   '';
 in {
   options.modules.discord-pro.enable =
@@ -77,17 +77,19 @@ in {
       SKIP_HOST_UPDATE = true;
     };
 
-    xdg.desktopEntries.discord-pro = {
-      name = "Discord Professional";
-      exec = "discord-pro --start-minimized";
-      icon = "discord";
-      categories = ["Network" "InstantMessaging"];
-    };
+    home.file.".local/share/applications/discord-pro.desktop".text = ''
+      [Desktop Entry]
+      Name=Discord Professional
+      Exec=${lib.getExe discord-pro} --start-minimized
+      Icon=discord
+      Type=Application
+      Categories=Network;InstantMessaging;
+    '';
 
     xdg.configFile."autostart/discord-pro.desktop".text = ''
       [Desktop Entry]
       Name=Discord Professional
-      Exec=discord-pro --start-minimized
+      Exec=${lib.getExe discord-pro} --start-minimized
       Type=Application
       Categories=Network;InstantMessaging;
     '';
