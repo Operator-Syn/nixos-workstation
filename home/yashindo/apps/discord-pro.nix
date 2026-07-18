@@ -66,12 +66,24 @@
 
     exec nvidia-offload ${pkgs.discord}/bin/discord "$@"
   '';
+
+  discord-pro-login-prompt = pkgs.writeShellScriptBin "discord-pro-login-prompt" ''
+    if ${lib.getExe pkgs.kdePackages.kdialog} \
+      --title "Start Discord Professional?" \
+      --yesno "Would you like Discord Professional to run in the background now?"; then
+      exec ${lib.getExe discord-pro} --start-minimized
+    fi
+  '';
 in {
   options.modules.discord-pro.enable =
     lib.mkEnableOption "Secondary Professional Discord";
 
   config = lib.mkIf config.modules.discord-pro.enable {
-    home.packages = [discord-pro];
+    home.packages = [
+      discord-pro
+      pkgs.kdePackages.kdialog
+      discord-pro-login-prompt
+    ];
 
     home.file.".local/share/discord-pro/config/discord/settings.json".text = builtins.toJSON {
       SKIP_HOST_UPDATE = true;
@@ -89,7 +101,7 @@ in {
     xdg.configFile."autostart/discord-pro.desktop".text = ''
       [Desktop Entry]
       Name=Discord Professional
-      Exec=${lib.getExe discord-pro} --start-minimized
+      Exec=${lib.getExe discord-pro-login-prompt}
       Type=Application
       Categories=Network;InstantMessaging;
     '';
