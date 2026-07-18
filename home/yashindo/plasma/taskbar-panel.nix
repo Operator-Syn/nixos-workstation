@@ -3,7 +3,8 @@
   lib,
   pkgs,
   ...
-}: {
+}:
+{
   options.modules.taskbar-panel.enable = lib.mkEnableOption "KDE Plasma Bottom Panel";
 
   config = lib.mkIf config.modules.taskbar-panel.enable {
@@ -11,7 +12,7 @@
 
     xdg.mimeApps = {
       enable = true;
-      defaultApplications."inode/directory" = ["org.kde.dolphin.desktop"];
+      defaultApplications."inode/directory" = [ "org.kde.dolphin.desktop" ];
     };
 
     programs.plasma = {
@@ -37,6 +38,7 @@
                   "applications:org.kde.dolphin.desktop"
                   "applications:firefox.desktop"
                   "applications:brave-browser.desktop"
+                  "applications:hermes-desktop.desktop"
                   "applications:code.desktop"
                   "applications:Alacritty.desktop"
                 ];
