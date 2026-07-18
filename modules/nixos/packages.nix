@@ -1,4 +1,4 @@
-{pkgs, ...}: {
+{ pkgs, ... }: {
   imports = [
     ./scripts.nix
   ];
@@ -16,7 +16,7 @@
     bun
     pavucontrol
     kdePackages.kamoso
-    cobang
+    kdePackages.qrca
     zbar
     tcpdump
     tree
