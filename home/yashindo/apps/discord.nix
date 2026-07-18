@@ -40,6 +40,14 @@
         ;;
     esac
   '';
+
+  discord-login-prompt = pkgs.writeShellScriptBin "discord-login-prompt" ''
+    if ${lib.getExe pkgs.kdePackages.kdialog} \
+      --title "Start Discord?" \
+      --yesno "Would you like Discord to run in the background now?"; then
+      exec nvidia-offload ${lib.getExe pkgsUnstable.discord} --ozone-platform=x11 --start-minimized
+    fi
+  '';
 in {
   options.modules.discord.enable = lib.mkEnableOption "Discord";
 
@@ -48,6 +56,7 @@ in {
       pkgsUnstable.discord
       pkgs.kdePackages.kdialog
       discord-gpu-picker
+      discord-login-prompt
     ];
 
     # Skip update check and start minimized
@@ -64,11 +73,11 @@ in {
       Categories=Network;InstantMessaging;
     '';
 
-    # Autostart directly on the dedicated GPU without showing the picker.
+    # Ask after login whether Discord should start minimized on the dedicated GPU.
     xdg.configFile."autostart/discord.desktop".text = ''
       [Desktop Entry]
       Name=Discord
-      Exec=nvidia-offload ${lib.getExe pkgsUnstable.discord} --ozone-platform=x11 --start-minimized
+      Exec=${lib.getExe discord-login-prompt}
       Type=Application
       Categories=Network;InstantMessaging;
       X-GNOME-Autostart-enabled=true
