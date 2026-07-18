@@ -13,6 +13,7 @@
     ./fish.nix
     ./git.nix
     ./goose.nix
+    ./hermes-desktop.nix
     ./latex.nix
     ./libreoffice.nix
     ./obs-studio.nix
@@ -43,6 +44,7 @@
     fish.enable = true;
     git.enable = true;
     goose.enable = true;
+    hermes-desktop.enable = true;
     latex.enable = true;
     libreoffice.enable = true;
     obs-studio.enable = true;
