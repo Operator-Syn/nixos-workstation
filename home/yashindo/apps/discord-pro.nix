@@ -17,6 +17,8 @@
     PRO_CONFIG="$PRO_BASE/config"
     PRO_CACHE="$PRO_BASE/cache"
     PRO_DATA="$PRO_BASE/data"
+    PRO_IPC_SOCKET="$PRO_RUNTIME/discord-ipc-0"
+    SHARED_IPC_SOCKET="$REAL_XDG_RUNTIME_DIR/discord-ipc-1"
 
     mkdir -p "$PRO_RUNTIME" "$PRO_CONFIG" "$PRO_CACHE" "$PRO_DATA"
     chmod 700 "$PRO_RUNTIME"
@@ -63,6 +65,34 @@
     export XDG_CONFIG_HOME="$PRO_CONFIG"
     export XDG_CACHE_HOME="$PRO_CACHE"
     export XDG_DATA_HOME="$PRO_DATA"
+
+    # VSCord searches the session runtime directory for discord-ipc-0 through
+    # discord-ipc-9. Discord-pro needs its own XDG runtime directory for its
+    # isolated profile, so expose its RPC socket as the secondary standard IPC
+    # socket without interfering with the normal Discord client's ipc-0.
+    bridge_discord_ipc() {
+      discord_pid="$PPID"
+
+      while ${pkgs.coreutils}/bin/kill -0 "$discord_pid" 2>/dev/null && [ ! -S "$PRO_IPC_SOCKET" ]; do
+        ${pkgs.coreutils}/bin/sleep 0.1
+      done
+
+      [ -S "$PRO_IPC_SOCKET" ] || return
+
+      if [ ! -e "$SHARED_IPC_SOCKET" ] && [ ! -L "$SHARED_IPC_SOCKET" ]; then
+        ${pkgs.coreutils}/bin/ln -s "$PRO_IPC_SOCKET" "$SHARED_IPC_SOCKET"
+      fi
+
+      while ${pkgs.coreutils}/bin/kill -0 "$discord_pid" 2>/dev/null && [ -S "$PRO_IPC_SOCKET" ]; do
+        ${pkgs.coreutils}/bin/sleep 1
+      done
+
+      if [ "$( ${pkgs.coreutils}/bin/readlink "$SHARED_IPC_SOCKET" 2>/dev/null || true)" = "$PRO_IPC_SOCKET" ]; then
+        ${pkgs.coreutils}/bin/rm -f "$SHARED_IPC_SOCKET"
+      fi
+    }
+
+    bridge_discord_ipc &
 
     exec nvidia-offload ${pkgs.discord}/bin/discord "$@"
   '';
