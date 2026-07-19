@@ -34,7 +34,7 @@ in
       Comment=Desktop interface for the Hermes agent
       Exec=${desktop-launcher}/bin/hermes-desktop-feilhann %U
       TryExec=${desktop-launcher}/bin/hermes-desktop-feilhann
-      Icon=${desktop}/share/hermes-desktop/dist/hermes.png
+      Icon=org.supertux.SuperTux-Milestone1
       Terminal=false
       Type=Application
       Categories=Development;Utility;
