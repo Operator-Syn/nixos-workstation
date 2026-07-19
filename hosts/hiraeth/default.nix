@@ -1,4 +1,4 @@
-{ inputs, ... }: {
+{inputs, ...}: {
   imports = [
     inputs.aagl.nixosModules.default
 
@@ -24,10 +24,12 @@
 
     ../../modules/nixos/networking.nix
     ../../modules/nixos/netbird.nix
-    ../../modules/nixos/ollama.nix
     ../../modules/nixos/packages.nix
     ../../modules/nixos/security/home-acl.nix
     ../../modules/nixos/hermes.nix
+    ../../modules/nixos/obsidian-hermes-vault.nix
+    ../../modules/nixos/graphify.nix
+    ../../modules/nixos/hermes-graphify.nix
     ../../modules/nixos/users/feilhann.nix
     ../../modules/nixos/users/yashindo.nix
     ../../modules/nixos/kvm-manager.nix
@@ -41,7 +43,6 @@
 
   modules = {
     netbird.enable = true;
-    ollama.enable = true;
     steam.enable = true;
     kvm-manager.enable = true;
 
@@ -50,6 +51,10 @@
 
     python-shell.enable = true;
     asus.enable = true;
+    hermes.enable = true;
+    obsidianHermesVault.enable = true;
+    graphify.enable = true;
+    hermes.graphify.enable = true;
   };
 
   hostStorage.enable = true;
@@ -65,6 +70,13 @@
       name = "feilhann-home-readonly";
       reader = "yashindo";
       target = "feilhann";
+      excludeDirectories = [".hermes"];
+    }
+    {
+      name = "hermes-plans-readonly";
+      reader = "yashindo";
+      target = "feilhann";
+      paths = [".hermes/plans"];
     }
   ];
 
