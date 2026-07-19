@@ -17,6 +17,7 @@
     ./latex.nix
     ./libreoffice.nix
     ./obs-studio.nix
+    ./obsidian.nix
     ./prisma.nix
     ./castersoundboard.nix
     ./spotify.nix
@@ -43,11 +44,12 @@
     firefox.enable = true;
     fish.enable = true;
     git.enable = true;
-    goose.enable = true;
+    goose.enable = false;
     hermes-desktop.enable = true;
     latex.enable = true;
     libreoffice.enable = true;
     obs-studio.enable = true;
+    obsidian.enable = true;
     prisma.enable = true;
     castersoundboard.enable = true;
     spotify.enable = true;
