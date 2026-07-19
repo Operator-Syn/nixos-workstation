@@ -71,22 +71,55 @@
   '';
 
   rebuild = pkgs.writeShellScriptBin "rebuild" ''
+    sudo=/run/wrappers/bin/sudo
+    sudo_keepalive_pid=""
+
+    stop_sudo_keepalive() {
+      if test -n "$sudo_keepalive_pid"; then
+        kill "$sudo_keepalive_pid" 2>/dev/null || true
+        wait "$sudo_keepalive_pid" 2>/dev/null || true
+        sudo_keepalive_pid=""
+      fi
+    }
+
     cleanup() {
-      sudo -k
+      stop_sudo_keepalive
+      "$sudo" -k
       echo -e "\n[!] Build interrupted. Credentials cleared."
       exit 1
     }
 
     trap cleanup SIGINT SIGTERM
 
+    echo "Authenticating once for the rebuild..."
+    "$sudo" -v
+    (
+      while "$sudo" -n -v >/dev/null 2>&1; do
+        sleep 60
+      done
+    ) &
+    sudo_keepalive_pid=$!
+
     ${update-hardware}/bin/update-hardware || cleanup
 
     echo "Starting NixOS Rebuild..."
-    sudo nixos-rebuild switch --flake "$HOME/nix-config/#nixos" --cores "$(nproc)" --show-trace || cleanup
+    "$sudo" -n nixos-rebuild switch --flake "$HOME/nix-config/#nixos" --cores "$(nproc)" --show-trace || cleanup
 
-    # Optional: clear sudo at the very end to stay locked
-    # echo "Flushing credentials"
-    # sudo -k
+    echo "Refreshing Hermes home ACL policies..."
+    if ! /run/current-system/sw/bin/hermes-repair-acls; then
+      stop_sudo_keepalive
+      "$sudo" -k
+      echo -e "\n[!] NixOS rebuild activated, but Hermes ACL repair failed. Credentials cleared."
+      exit 1
+    fi
+
+    if "$sudo" -n systemctl cat hermes-plans-readonly-acl.service >/dev/null 2>&1; then
+      echo "Ensuring Hermes plans ACL service has run..."
+      "$sudo" -n systemctl start hermes-plans-readonly-acl.service || cleanup
+    fi
+
+    stop_sudo_keepalive
+    trap - EXIT
   '';
 in {
   environment.systemPackages = [
