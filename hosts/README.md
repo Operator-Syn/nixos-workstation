@@ -20,6 +20,7 @@ hosts/
     |-- default.nix                 host entry point
     |-- boot.nix                    kernel and bootloader settings
     |-- hardware-configuration.nix  generated hardware scan
+    |-- storage.nix                 host storage declarations
     `-- nvidia.nix                  NVIDIA and graphics configuration
 ```
 
@@ -32,6 +33,7 @@ hosts/
 | Hardware | generated hardware scan, filesystems, CPU microcode |
 | Graphics | GPU bus IDs, NVIDIA mode, PRIME/offload settings |
 | Imports | selecting reusable modules from `modules/nixos/` |
+| Services | Hermes, Graphify, Obsidian vault, NetBird, ACL reconciliation |
 
 ## Enabled Development Support
 
@@ -41,7 +43,7 @@ hosts/
 modules.distrobox.debian-dev.enable = true;
 ```
 
-The old Docker-managed Debian container module and system-level Python shell module are left disabled in `hosts/hiraeth/default.nix`.
+The old Docker-managed Debian container module remains disabled. The system-level Python shell module is enabled for Hiraeth, while project-specific Python environments remain available through `devshells/`.
 
 The Debian Distrobox uses `/bin/bash` as its container shell so it does not try to launch the host NixOS `fish` binary inside Debian.
 
@@ -77,9 +79,30 @@ Review changes carefully before committing, especially anything involving filesy
 
 ## Switching This Host
 
+The fish alias `rb` runs the repository rebuild helper, including the hardware scan and post-activation ACL reconciliation request:
+
+```sh
+rb
+```
+
+For a direct activation without the helper:
+
 ```sh
 sudo nixos-rebuild switch --flake ~/nix-config#nixos --cores "$(nproc)" --show-trace
 ```
+
+After activation, verify the live generation separately:
+
+```sh
+systemctl --failed
+systemctl status home-acl-reconcile.service --no-pager
+```
+
+Hiraeth's ACL direction is intentionally asymmetric. The `feilhann-home-admin`
+group contains only `yashindo` and grants Yashindo full access to Feilhann's
+home. The reverse permissions are limited to Feilhann's read-only audit view of
+Yashindo's home, excluding `Git`, plus the separate Feilhann Git write policy.
+The ACL reconciler applies these declarations after tmpfiles resetup.
 
 ## Hiraeth ASUS and NVIDIA Compatibility
 
