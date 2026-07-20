@@ -60,6 +60,14 @@ describe("MCP stdio workflow", () => {
 
     const listed = await server.call(2, "tools/list", {});
     expect(listed.result).toBeDefined();
+    const authority = await server.call(3, "tools/call", {name: "read_authority_contract", arguments: {}});
+    expect(authority.result?.content?.[0]?.text).toContain("repositoryBoundary");
+    expect(authority.result?.content?.[0]?.text).not.toContain("operationId");
+    expect(authority.result?.content?.[0]?.text).not.toContain("approvalHash");
+    const contract = await server.call(4, "tools/call", {name: "validate_declarative_contract", arguments: {}});
+    expect(contract.result?.content?.[0]?.text).toContain('"valid": true');
+    expect(contract.result?.content?.[0]?.text).not.toContain("operationId");
+    expect(contract.result?.content?.[0]?.text).not.toContain("approvalHash");
   });
 
   test("rejects denied paths and stale approvals", async () => {
