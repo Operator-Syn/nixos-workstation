@@ -16,6 +16,11 @@ modules/
     |-- development/      Distrobox and system-level development support
     |-- hardware/         reusable hardware-related modules
     |-- users/            system user declarations
+    |-- security/         declarative home ACL reconciliation
+    |-- hermes.nix        Hermes backend, audit, and managed CLI
+    |-- graphify.nix      Graphify services and indexing
+    |-- hermes-graphify.nix Hermes-to-Graphify integration
+    |-- obsidian-hermes-vault.nix shared Obsidian vault
     |-- kvm-manager.nix   KVM/libvirt and virt-manager
     |-- networking.nix    NetworkManager
     |-- packages.nix      system package list
@@ -32,8 +37,13 @@ modules/
 | `development/` | Distrobox setup, declared mutable boxes, optional Python support, containers |
 | `hardware/` | Bluetooth and reusable ASUS hardware support |
 | `users/` | system users, shells, groups |
+| `security/home-acl.nix` | declarative ACL policies, one locked reconciler, and its timer |
+| `hermes.nix` | Hermes backend, audit reporting, managed CLI, and runtime paths |
+| `graphify.nix` | Graphify indexing service and watcher |
+| `hermes-graphify.nix` | Hermes Graphify integration services |
+| `obsidian-hermes-vault.nix` | shared Obsidian vault wiring |
 | `packages.nix` | system-wide packages |
-| `scripts.nix` | `rebuild`, `update-hardware`, `nvrun`, `getGPU` |
+| `scripts.nix` | `rebuild`, `update-system`, `update-hardware`, `nvrun`, `getGPU` |
 | `kvm-manager.nix` | KVM/libvirt services and virt-manager |
 | `virtualisation.nix` | Docker service |
 
@@ -76,7 +86,7 @@ Always keep the option name close to the feature it controls.
 | `development/distrobox.nix` | Distrobox package and Docker backend selection |
 | `development/distrobox-debian-dev.nix` | `debian-dev` assemble manifest and helper command |
 | `development/debian-container.nix` | Previous Docker-managed Debian container module, currently not imported by `hiraeth` |
-| `development/python-shell.nix` | Optional system-level Python shell support, currently disabled on `hiraeth` |
+| `development/python-shell.nix` | Optional system-level Python shell support, enabled on `hiraeth` |
 
 The Distrobox base module and individual box declarations are kept separate so installing Distrobox is not coupled to creating a specific mutable development box.
 
