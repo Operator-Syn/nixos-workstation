@@ -1,6 +1,7 @@
 # modules/nixos/steam.nix
 {
   pkgs,
+  pkgsUnstable,
   lib,
   config,
   ...
