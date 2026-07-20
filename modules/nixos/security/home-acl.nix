@@ -15,6 +15,7 @@
     ;
 
   cfg = config.services.homeAcl;
+  policyNames = map (policy: policy.name) cfg.policies;
   cacheNames = [
     ".cache"
     "Cache"
@@ -24,10 +25,13 @@
     "CachedData"
     "DawnGraphiteCache"
   ];
-  cacheNameExpression = concatStringsSep " -o " (map (name: "-name '${name}'") cacheNames);
-
-  unitName = policy: "${policy.name}-acl";
-  unitNames = map unitName cfg.policies;
+  cacheNamesForPolicy = policy:
+    if policy.access == "read-write"
+    then []
+    else cacheNames;
+  excludedDirectoryNames = policy: cacheNamesForPolicy policy ++ policy.excludeDirectories;
+  excludedDirectoryExpression = policy:
+    concatStringsSep " -o " (map (name: "-name '${name}'") (excludedDirectoryNames policy));
 
   isSafeIdentity = name: builtins.match "[a-z_][a-z0-9_-]*" name != null;
   targetHome = policy: lib.attrByPath [policy.target "home"] "/nonexistent" config.users.users;
@@ -46,19 +50,31 @@
     if policy.readerGroup == null
     then ["u:${policy.reader}"]
     else ["g:${policy.readerGroup}"];
+  directoryPermissions = policy:
+    if policy.access == "read-write"
+    then "rwx"
+    else "r-x";
+  filePermissions = policy:
+    if policy.access == "read-write"
+    then "rw-"
+    else "r-X";
+  defaultPermissions = policy:
+    if policy.access == "read-write"
+    then "rwX"
+    else "r-X";
   directoryAcl = policy:
     concatStringsSep "," (
-      map (entry: "${entry}:r-x") (aclEntries policy)
-      ++ ["m::r-x"]
-      ++ map (entry: "d:${entry}:r-X") (aclEntries policy)
-      ++ ["d:m::r-X"]
+      map (entry: "${entry}:${directoryPermissions policy}") (aclEntries policy)
+      ++ ["m::${directoryPermissions policy}"]
+      ++ map (entry: "d:${entry}:${defaultPermissions policy}") (aclEntries policy)
+      ++ ["d:m::${defaultPermissions policy}"]
     );
   accessDirectoryAcl = policy:
-    concatStringsSep "," (map (entry: "${entry}:r-x") (aclEntries policy) ++ ["m::r-x"]);
+    concatStringsSep "," (map (entry: "${entry}:${directoryPermissions policy}") (aclEntries policy) ++ ["m::${directoryPermissions policy}"]);
   traversalAcl = policy:
-    concatStringsSep "," (map (entry: "${entry}:--x") (aclEntries policy) ++ ["m::--x"]);
+    concatStringsSep "," (map (entry: "${entry}:--x") (aclEntries policy));
   fileAcl = policy:
-    concatStringsSep "," (map (entry: "${entry}:r-X") (aclEntries policy) ++ ["m::r-X"]);
+    concatStringsSep "," (map (entry: "${entry}:${filePermissions policy}") (aclEntries policy) ++ ["m::${filePermissions policy}"]);
   removeAcl = policy: concatStringsSep "," (aclEntries policy);
   removeDefaultAcl = policy: concatStringsSep "," (map (entry: "d:${entry}") (aclEntries policy));
 
@@ -89,8 +105,8 @@
   mkWorker = policy: let
     applyDirectories = mkApplyScript policy "directories";
     applyFiles = mkApplyScript policy "files";
-    excludedDirectoryNames = cacheNames ++ policy.excludeDirectories;
-    excludedDirectoryExpression = concatStringsSep " -o " (map (name: "-name '${name}'") excludedDirectoryNames);
+    excludedNames = excludedDirectoryNames policy;
+    excludedExpression = excludedDirectoryExpression policy;
   in
     pkgs.writeShellScript "home-acl-repair-subtree-${policy.name}" ''
       set -eu
@@ -101,10 +117,10 @@
       printf 'home ACL (${policy.name}): repairing %s\n' "$subtree"
 
       "$find" "$subtree" -xdev \
-        \( -type d \( ${excludedDirectoryExpression} \) -prune \) -o \
+        ${lib.optionalString (excludedNames != []) ''\( -type d \( ${excludedExpression} \) -prune \) -o''} \
         -type d -exec ${applyDirectories} {} +
       "$find" "$subtree" -xdev \
-        \( -type d \( ${excludedDirectoryExpression} \) -prune \) -o \
+        ${lib.optionalString (excludedNames != []) ''\( -type d \( ${excludedExpression} \) -prune \) -o''} \
         -type f -exec ${applyFiles} {} +
     '';
 
@@ -112,8 +128,12 @@
     home = targetHome policy;
     worker = mkWorker policy;
     applyFiles = mkApplyScript policy "files";
-    excludedDirectoryNames = cacheNames ++ policy.excludeDirectories;
-    excludedDirectoryExpression = concatStringsSep " -o " (map (name: "-name '${name}'") excludedDirectoryNames);
+    excludedNames = excludedDirectoryNames policy;
+    excludedExpression = excludedDirectoryExpression policy;
+    principal =
+      if policy.readerGroup == null
+      then "user:${policy.reader}"
+      else "group:${policy.readerGroup}";
     scopedRepair =
       concatMapStringsSep "\n" (
         relativePath: let
@@ -130,10 +150,29 @@
             parent="$subtree"
             while test "$parent" != "$home"; do
               "$setfacl" -m '${traversalAcl policy}' "$parent"
+              ${lib.optionalString (policy.access != "read-write") ''
+                "$setfacl" -m 'm::--x' "$parent"
+              ''}
               parent="$(${pkgs.coreutils}/bin/dirname "$parent")"
             done
             "$setfacl" -m '${directoryAcl policy}' "$subtree"
             ${worker} "$subtree"
+
+            # Reapply only the parent traversal ACL after the subtree repair.
+            # Read-write policies preserve existing parent ACL masks.
+            parent="$(${pkgs.coreutils}/bin/dirname "$subtree")"
+            while true; do
+              "$setfacl" -m '${traversalAcl policy}' "$parent"
+              ${lib.optionalString (policy.access != "read-write") ''
+                if test "$parent" != "$home"; then
+                  "$setfacl" -m 'm::--x' "$parent"
+                fi
+              ''}
+              if test "$parent" = "$home"; then
+                break
+              fi
+              parent="$(${pkgs.coreutils}/bin/dirname "$parent")"
+            done
           fi
         ''
       )
@@ -142,7 +181,7 @@
       if policy.paths != []
       then scopedRepair
       else ''
-        # Excluded top-level trees remain private and are not traversed.
+        # Apply the policy across the target home, honoring any declared exclusions.
         echo "home ACL (${policy.name}): applying inherited directory ACLs"
         "$setfacl" -m '${
           if policy.excludeDirectories == []
@@ -155,7 +194,7 @@
           -exec ${applyFiles} {} +
         echo "home ACL (${policy.name}): repairing top-level subtrees with two workers"
         "$find" "$home" -xdev -mindepth 1 -maxdepth 1 \
-          \( -type d \( ${excludedDirectoryExpression} \) -prune \) -o \
+          ${lib.optionalString (excludedNames != []) ''\( -type d \( ${excludedExpression} \) -prune \) -o''} \
           -type d -print0 | \
           "$xargs" -0 -r -n 1 -P 2 ${worker}
       '';
@@ -165,34 +204,90 @@
 
       home='${home}'
       setfacl=${pkgs.acl}/bin/setfacl
+      getfacl=${pkgs.acl}/bin/getfacl
+      grep=${pkgs.gnugrep}/bin/grep
       find=${pkgs.findutils}/bin/find
       xargs=${pkgs.findutils}/bin/xargs
-      lock=/run/lock/home-acl-${policy.name}.lock
 
       test -d "$home" || exit 0
-      exec 9>"$lock"
-      ${pkgs.util-linux}/bin/flock 9
 
-      # Excluded caches may have inherited an ACL before their exclusion was
-      # declared. Remove both access and default entries from their full tree.
-      echo "home ACL (${policy.name}): removing stale ACLs from excluded caches"
-      "$find" "$home" -xdev -type d \( ${cacheNameExpression} \) -prune \
-        -exec "$setfacl" -R -x '${removeAcl policy}' {} + 2>/dev/null || true
-      "$find" "$home" -xdev -type d \( ${cacheNameExpression} \) -prune \
-        -exec "$setfacl" -R -x '${removeDefaultAcl policy}' {} + 2>/dev/null || true
+      ${lib.optionalString (excludedNames != []) ''
+        # Excluded directories may have inherited an ACL before their exclusion
+        # was declared. Remove both access and default entries from their full tree.
+        echo "home ACL (${policy.name}): removing stale ACLs from excluded directories"
+        "$find" "$home" -xdev -type d \( ${excludedExpression} \) -prune \
+          -exec "$setfacl" -R -x '${removeAcl policy}' {} + 2>/dev/null || true
+        "$find" "$home" -xdev -type d \( ${excludedExpression} \) -prune \
+          -exec "$setfacl" -R -x '${removeDefaultAcl policy}' {} + 2>/dev/null || true
+      ''}
 
       ${repairBody}
+
+      verify_acl() {
+        path="$1"
+        expected="$2"
+        if ! "$getfacl" -cp "$path" | "$grep" -E -q "^$expected([[:space:]]|$)"; then
+          echo "home ACL (${policy.name}): effective ACL mismatch on $path; expected $expected" >&2
+          exit 1
+        fi
+      }
+
+      ${lib.optionalString (policy.paths == [] && policy.access == "read-write") ''
+        verify_acl "$home" '${principal}:rwx'
+        verify_acl "$home" 'mask::rwx'
+        for relative_path in .hermes .hermes/browser-profile .cache; do
+          nested_path="$home/$relative_path"
+          if test -d "$nested_path"; then
+            verify_acl "$nested_path" '${principal}:rwx'
+            verify_acl "$nested_path" 'mask::rwx'
+          fi
+        done
+      ''}
+
+      ${concatMapStringsSep "\n" (
+          relativePath: ''
+            scoped_path="$home/${relativePath}"
+            if test -d "$scoped_path"; then
+              verify_acl "$scoped_path" '${principal}:${directoryPermissions policy}'
+              verify_acl "$scoped_path" 'mask::${directoryPermissions policy}'
+
+              parent="$(${pkgs.coreutils}/bin/dirname "$scoped_path")"
+              while test "$parent" != "$home"; do
+                verify_acl "$parent" '${principal}:--x'
+                ${lib.optionalString (policy.access != "read-write") ''
+                  verify_acl "$parent" 'mask::--x'
+                ''}
+                parent="$(${pkgs.coreutils}/bin/dirname "$parent")"
+              done
+            fi
+          ''
+        )
+        policy.paths}
       echo "home ACL (${policy.name}): repair complete"
     '';
+
+  reconcileScript = pkgs.writeShellScript "home-acl-reconcile" ''
+    set -eu
+
+    lock=/run/lock/home-acl-reconcile.lock
+    exec 9>"$lock"
+    ${pkgs.util-linux}/bin/flock 9
+
+    ${concatMapStringsSep "\n" (policy: ''
+      echo "[${policy.name}] applying ACL policy"
+      ${mkRepairScript policy}
+    '') cfg.policies}
+  '';
 
   statusCommand = pkgs.writeShellScriptBin "home-acl-status" ''
     set -eu
     systemctl=${pkgs.systemd}/bin/systemctl
-    echo "Home ACL policies:"
+    echo "Home ACL reconciliation:"
+    echo "  service: $($systemctl is-active home-acl-reconcile.service 2>/dev/null || true)"
+    echo "  timer: $($systemctl is-active home-acl-reconcile.timer 2>/dev/null || true)"
+    echo "Policies:"
     ${concatMapStringsSep "\n" (policy: ''
-        echo "  ${policy.name}: ${targetHome policy} -> ${policy.reader}"
-        echo "    service: $($systemctl is-active ${unitName policy}.service 2>/dev/null || true)"
-        echo "    timer: $($systemctl is-active ${unitName policy}.timer 2>/dev/null || true)"
+        echo "  ${policy.name}: ${targetHome policy} -> ${policy.reader} (${policy.access})"
       '')
       cfg.policies}
   '';
@@ -200,41 +295,20 @@
   repairCommand = pkgs.writeShellScriptBin "hermes-repair-acls" ''
     set -eu
     systemctl=${pkgs.systemd}/bin/systemctl
-    journalctl=${pkgs.systemd}/bin/journalctl
     sudo=/run/wrappers/bin/sudo
 
     echo "Authenticating once for Hermes ACL repair..."
     "$sudo" -v
 
-    run_policy() {
-      policy_name="$1"
-      unit="$2"
-
-      echo "[$policy_name] starting $unit; progress follows"
-      "$sudo" -n "$journalctl" --no-pager -n 0 -f -u "$unit" &
-      journal_pid=$!
-
-      cleanup_journal() {
-        kill "$journal_pid" 2>/dev/null || true
-        wait "$journal_pid" 2>/dev/null || true
-      }
-
-      if "$sudo" -n "$systemctl" start "$unit"; then
-        cleanup_journal
-        echo "[$policy_name] complete"
-      else
-        status=$?
-        cleanup_journal
-        echo "[$policy_name] failed; showing current unit status"
-        "$sudo" -n "$systemctl" status "$unit" --no-pager || true
-        return "$status"
-      fi
-    }
-
-    ${concatMapStringsSep "\n" (
-        policy: ''run_policy "${policy.name}" "${unitName policy}.service"''
-      )
-      cfg.policies}
+    echo "Starting home ACL reconciliation..."
+    if "$sudo" -n "$systemctl" start home-acl-reconcile.service; then
+      echo "Home ACL reconciliation complete"
+    else
+      status=$?
+      echo "Home ACL reconciliation failed; showing current unit status"
+      "$sudo" -n "$systemctl" status home-acl-reconcile.service --no-pager || true
+      exit "$status"
+    fi
   '';
 in {
   options.services.homeAcl = {
@@ -245,7 +319,7 @@ in {
             options = {
               name = mkOption {
                 type = types.str;
-                description = "Stable name used for the generated systemd service and timer.";
+                description = "Stable name used for policy reporting and deterministic reconciliation order.";
               };
               reader = mkOption {
                 type = types.str;
@@ -265,6 +339,11 @@ in {
                 default = [];
                 description = "Relative target-home subtrees to repair instead of the entire home.";
               };
+              access = mkOption {
+                type = types.enum ["read-only" "read-write"];
+                default = "read-only";
+                description = "Permissions granted by this policy.";
+              };
               excludeDirectories = mkOption {
                 type = types.listOf types.str;
                 default = [];
@@ -276,13 +355,6 @@ in {
       );
       default = [];
       description = "Explicit cross-home read-only ACL policies.";
-    };
-
-    policyUnits = mkOption {
-      type = types.listOf types.str;
-      readOnly = true;
-      internal = true;
-      description = "Generated ACL repair systemd unit names.";
     };
 
     statusCommand = mkOption {
@@ -344,47 +416,34 @@ in {
       cfg.policies
       ++ [
         {
-          assertion = builtins.length unitNames == builtins.length (lib.unique unitNames);
+          assertion = builtins.length policyNames == builtins.length (lib.unique policyNames);
           message = "services.homeAcl policy names must be unique.";
         }
       ];
 
-    systemd.services = lib.listToAttrs (
-      map (policy: {
-        name = unitName policy;
-        value = {
-          description = "Grant ${policy.reader} read-only access to ${policy.target}'s home";
-          restartIfChanged = false;
-          stopIfChanged = false;
-          serviceConfig = {
-            Type = "oneshot";
-            ExecStart = mkRepairScript policy;
-            TimeoutStartSec = "45min";
-            Nice = 10;
-            IOSchedulingClass = "idle";
-          };
-        };
-      })
-      cfg.policies
-    );
+    systemd.services.home-acl-reconcile = {
+      description = "Reconcile configured home ACL policies";
+      after = ["systemd-tmpfiles-resetup.service"];
+      serviceConfig = {
+        Type = "oneshot";
+        ExecStart = reconcileScript;
+        TimeoutStartSec = "45min";
+        Nice = 10;
+        IOSchedulingClass = "idle";
+      };
+    };
 
-    systemd.timers = lib.listToAttrs (
-      map (policy: {
-        name = unitName policy;
-        value = {
-          description = "Refresh ${policy.reader}'s read-only access to ${policy.target}'s home";
-          wantedBy = ["timers.target"];
-          timerConfig = {
-            OnBootSec = "10min";
-            OnUnitActiveSec = "6h";
-            Unit = "${unitName policy}.service";
-          };
-        };
-      })
-      cfg.policies
-    );
+    systemd.timers.home-acl-reconcile = {
+      description = "Reconcile configured home ACL policies periodically";
+      wantedBy = ["timers.target"];
+      timerConfig = {
+        OnBootSec = "10min";
+        OnUnitActiveSec = "6h";
+        Persistent = true;
+        Unit = "home-acl-reconcile.service";
+      };
+    };
 
-    services.homeAcl.policyUnits = map (name: "${name}.service") unitNames;
     services.homeAcl.statusCommand = statusCommand;
 
     environment.systemPackages = [
