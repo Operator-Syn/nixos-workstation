@@ -7,6 +7,7 @@ import {tmpdir} from "node:os";
 import {basename, dirname, relative, resolve, sep} from "node:path";
 import {spawnSync} from "node:child_process";
 import {z} from "zod";
+import {authorityContract, validateDeclarativeContract} from "./contract.ts";
 
 const repoRoot = resolve(process.env.NIX_CONFIG_MCP_ROOT ?? process.cwd());
 const deniedNames = new Set([".env", ".env.local", ".env.production", "id_rsa", "id_ed25519"]);
@@ -249,6 +250,23 @@ const server = new McpServer({name: "nix-config-project-mcp", version: "0.1.0"})
 server.tool("read_project_overview", "Summarize the repository structure and NixOS entry points.", {}, async () => {
   const output = runAllowed("git", ["ls-files", "--cached", "--others", "--exclude-standard"], repoRoot);
   return result({repository: repoRoot, files: visibleGitLines(output.stdout).filter(Boolean).slice(0, 500), flake: "flake.nix", host: "hosts/hiraeth/default.nix"});
+});
+
+server.tool("read_authority_contract", "Explain the repository MCP authority, ACL, Hermes, and protected-path conventions.", {}, async () => {
+  return result({repository: repoRoot, ...authorityContract});
+});
+
+server.tool("validate_declarative_contract", "Validate declarative ACL, Hermes, rebuild, and MCP authority conventions from repository source only.", {}, async () => {
+  const paths = [
+    "modules/nixos/security/home-acl.nix",
+    "hosts/hiraeth/default.nix",
+    "modules/nixos/users/feilhann.nix",
+    "modules/nixos/hermes.nix",
+    "modules/nixos/scripts.nix",
+    "mcp/src/server.ts",
+  ];
+  const entries = await Promise.all(paths.map(async (path) => [path, (await readSafeFile(path)) ?? ""] as const));
+  return result({repository: repoRoot, ...validateDeclarativeContract(Object.fromEntries(entries))});
 });
 
 server.tool("read_project_file", "Read one non-sensitive file inside the repository.", {path: z.string()}, async ({path}) => {
