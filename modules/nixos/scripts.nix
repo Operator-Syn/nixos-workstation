@@ -105,19 +105,15 @@
     echo "Starting NixOS Rebuild..."
     "$sudo" -n nixos-rebuild switch --flake "$HOME/nix-config/#nixos" --cores "$(nproc)" --show-trace || cleanup
 
-    echo "Refreshing Hermes home ACL policies..."
-    if ! /run/current-system/sw/bin/hermes-repair-acls; then
+    echo "Starting home ACL reconciliation..."
+    if ! "$sudo" -n systemctl start home-acl-reconcile.service; then
       stop_sudo_keepalive
       "$sudo" -k
       echo -e "\n[!] NixOS rebuild activated, but Hermes ACL repair failed. Credentials cleared."
       exit 1
     fi
 
-    if "$sudo" -n systemctl cat hermes-plans-readonly-acl.service >/dev/null 2>&1; then
-      echo "Ensuring Hermes plans ACL service has run..."
-      "$sudo" -n systemctl start hermes-plans-readonly-acl.service || cleanup
-    fi
-
+    echo "Home ACL reconciliation complete."
     stop_sudo_keepalive
     trap - EXIT
   '';
