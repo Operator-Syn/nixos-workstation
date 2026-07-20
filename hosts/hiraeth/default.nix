@@ -65,20 +65,32 @@
       reader = "feilhann";
       readerGroup = "hermes-audit-readonly";
       target = "yashindo";
+      excludeDirectories = ["Git"];
     }
     {
-      name = "feilhann-home-readonly";
-      reader = "yashindo";
-      target = "feilhann";
-      excludeDirectories = [".hermes"];
+      name = "hermes-projects-write";
+      reader = "feilhann";
+      readerGroup = "hermes-projects-write";
+      target = "yashindo";
+      paths = ["Git"];
+      access = "read-write";
     }
     {
-      name = "hermes-plans-readonly";
+      name = "feilhann-home-admin";
       reader = "yashindo";
+      readerGroup = "feilhann-home-admin";
       target = "feilhann";
-      paths = [".hermes/plans"];
+      access = "read-write";
     }
   ];
+
+  systemd.services.home-acl-reconcile = {
+    after = ["hermes-desktop-backend.service"];
+    wants = [
+      "hermes-desktop-backend.service"
+      "systemd-tmpfiles-resetup.service"
+    ];
+  };
 
   system.stateVersion = "25.11";
 }
