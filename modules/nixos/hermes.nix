@@ -22,6 +22,73 @@
   ];
   auditHelper = pkgs.writeText "hermes-audit.py" (builtins.readFile ../../scripts/hermes_audit.py);
   graphifyNotesHelper = pkgs.writeText "hermes-graphify-notes.py" (builtins.readFile ../../scripts/hermes_graphify_mcp.py);
+  authSummary = pkgs.writeShellScript "hermes-auth-summary" ''
+    journal_output="$(${pkgs.systemd}/bin/journalctl --no-pager --output=short-iso -b -n 240)" || exit 1
+    if output="$(printf '%s\n' "$journal_output" | ${pkgs.gnugrep}/bin/grep -Ei 'sshd|sudo|polkit|session|authentication|failed password|accepted password')"; then
+      printf '%s\n' "$output"
+    elif test -z "$output"; then
+      echo "AUDIT_SECTION_STATUS: unavailable"
+      echo "No matching authentication events in the current boot."
+    else
+      exit 1
+    fi
+  '';
+  aclStorageSummary = pkgs.writeShellScript "hermes-acl-storage-summary" ''
+    set -u
+
+    unavailable=0
+    getfacl=${pkgs.acl}/bin/getfacl
+    grep=${pkgs.gnugrep}/bin/grep
+    systemctl=${pkgs.systemd}/bin/systemctl
+    findmnt=${pkgs.util-linux}/bin/findmnt
+
+    report_unit() {
+      unit="$1"
+      state="$($systemctl show "$unit" --property=LoadState,ActiveState,UnitFileState --no-pager 2>/dev/null || true)"
+      if printf '%s\n' "$state" | "$grep" -q '^LoadState=loaded$'; then
+        printf '%s\n' "$state"
+      else
+        echo "$unit: unavailable"
+        unavailable=1
+      fi
+    }
+
+    report_acl() {
+      path="$1"
+      if test -e "$path"; then
+        echo "ACL metadata: $path"
+        "$getfacl" -cp "$path" | "$grep" -E '^(user:yashindo:|group:feilhann-home-admin:|group:hermes-projects-write:|group:hermes-audit-readonly:|mask::|default:(user:yashindo:|group:feilhann-home-admin:|group:hermes-projects-write:|group:hermes-audit-readonly:|mask::))' || true
+      else
+        echo "ACL metadata: $path unavailable"
+        unavailable=1
+      fi
+    }
+
+    echo "Unit: home-acl-reconcile.service"
+    report_unit home-acl-reconcile.service
+    echo "Unit: home-acl-reconcile.timer"
+    report_unit home-acl-reconcile.timer
+
+    report_acl /home/feilhann/.hermes
+    report_acl /home/feilhann/.hermes/plans
+    report_acl /home/yashindo/Git
+
+    if mount_info="$($findmnt -T /home/yashindo/Git -o TARGET,SOURCE,FSTYPE,OPTIONS -n 2>/dev/null)" && test -n "$mount_info"; then
+      echo "Git mount: $mount_info"
+      mount_options="$($findmnt -T /home/yashindo/Git -o OPTIONS -n 2>/dev/null || true)"
+      case ",$mount_options," in
+        *,ro,*) echo "AUDIT_MOUNT_STATUS: read-only" ;;
+        *) echo "AUDIT_MOUNT_STATUS: writable" ;;
+      esac
+    else
+      echo "Git mount: unavailable"
+      unavailable=1
+    fi
+
+    if test "$unavailable" -ne 0; then
+      echo "AUDIT_SECTION_STATUS: unavailable"
+    fi
+  '';
   hermesPlugins = pkgs.runCommand "hermes-plugins" {} ''
     cp -r ${hermes}/share/hermes-agent/plugins "$out"
     substituteInPlace "$out/web/ddgs/provider.py" \
@@ -39,6 +106,23 @@
     export HERMES_NODE=${lib.getExe pkgs.nodejs}
 
     exec ${hermes.passthru.hermesVenv}/bin/hermes "$@"
+  '';
+  hermes-cli = pkgs.writeShellScriptBin "hermes" ''
+    set -eu
+
+    export HOME=/home/yashindo
+    export HERMES_HOME=/home/yashindo/.hermes
+    export HERMES_MANAGED_DIR=/etc/hermes
+    export HERMES_WRITE_SAFE_ROOT=/home/yashindo
+    export HERMES_BUNDLED_SKILLS=${hermes}/share/hermes-agent/skills
+    export HERMES_BUNDLED_PLUGINS=${hermesPlugins}
+    export HERMES_BUNDLED_LOCALES=${hermes}/share/hermes-agent/locales
+    export HERMES_WEB_DIST=${hermes}/share/hermes-agent/web_dist
+    export HERMES_TUI_DIR=${hermes}/ui-tui
+    export HERMES_PYTHON=${hermes.passthru.hermesVenv}/bin/python3
+    export HERMES_NODE=${lib.getExe pkgs.nodejs}
+
+    exec ${hermes}/bin/hermes "$@"
   '';
   agent-browser = pkgs.stdenv.mkDerivation {
     pname = "agent-browser";
@@ -207,22 +291,13 @@
       echo "System profile: $(readlink -f /nix/var/nix/profiles/system 2>/dev/null || echo unavailable)"
       echo "Configuration provenance: /home/yashindo/nix-config#nixos (hosts/hiraeth)"
       echo "Collector status: running"
-      echo "Hermes ACL service: $(${pkgs.systemd}/bin/systemctl is-active hermes-home-audit-acl.service 2>/dev/null || true)"
+      echo "Hermes ACL reconciliation: $(${pkgs.systemd}/bin/systemctl is-active home-acl-reconcile.service 2>/dev/null || true)"
       echo "Hermes backend: $(${pkgs.systemd}/bin/systemctl is-active hermes-desktop-backend.service 2>/dev/null || true)"
       section "Hermes journal" ${pkgs.systemd}/bin/journalctl --no-pager --output=short-iso -b \
-        -u hermes-home-audit-acl.service -u hermes-audit-report.service -u hermes-desktop-backend.service -n 160
+        -u home-acl-reconcile.service -u hermes-audit-report.service -u hermes-desktop-backend.service -n 160
       section "System journal summary" ${pkgs.systemd}/bin/journalctl --no-pager --output=short-iso -b -p warning..emerg -n 160
-      auth_summary() {
-        if output="$(${pkgs.systemd}/bin/journalctl --no-pager --output=short-iso -b -n 240 | ${pkgs.gnugrep}/bin/grep -Ei 'sshd|sudo|polkit|session|authentication|failed password|accepted password')"; then
-          printf '%s\n' "$output"
-        elif test -z "$output"; then
-          echo "AUDIT_SECTION_STATUS: unavailable"
-          echo "No matching authentication events in the current boot."
-        else
-          return 1
-        fi
-      }
-      section "Authentication summary" auth_summary
+      section "Authentication summary" ${authSummary}
+      section "ACL and storage state" ${aclStorageSummary}
       section "Failed systemd units" ${pkgs.systemd}/bin/systemctl --failed --no-legend --no-pager
       section "Firewall ruleset" ${pkgs.nftables}/bin/nft list ruleset
       section "Recent NixOS generations" ${pkgs.bash}/bin/bash -c \
@@ -249,6 +324,7 @@ in {
 
   config = lib.mkIf cfg.enable {
     environment.systemPackages = [
+      hermes-cli
       hermes-auth-feilhann
       hermes-desktop-doctor
       pythonWithDdgs
@@ -264,7 +340,7 @@ in {
         NoNewPrivileges = true;
         PrivateTmp = true;
         ProtectSystem = "strict";
-        ProtectHome = true;
+        ProtectHome = "read-only";
         ReadWritePaths = ["/run/hermes-audit"];
         Group = "hermes-audit-readonly";
         RuntimeDirectory = "hermes-audit";
@@ -373,8 +449,8 @@ in {
     };
 
     systemd.tmpfiles.rules = [
-      "d /home/feilhann/.hermes 0700 feilhann feilhann - -"
-      "d /home/feilhann/.hermes/browser-profile 0700 feilhann feilhann - -"
+      "d /home/feilhann/.hermes 0770 feilhann feilhann - -"
+      "d /home/feilhann/.hermes/browser-profile 0770 feilhann feilhann - -"
     ];
 
     systemd.services.hermes-desktop-backend = {
@@ -404,7 +480,10 @@ in {
       serviceConfig = {
         User = "feilhann";
         Group = "feilhann";
-        SupplementaryGroups = ["hermes-desktop"];
+        SupplementaryGroups = [
+          "hermes-desktop"
+          "hermes-projects-write"
+        ];
         WorkingDirectory = "/home/feilhann";
         EnvironmentFile = "/run/hermes/dashboard-token";
         ExecStartPre = "${pkgs.coreutils}/bin/test -s /run/hermes/dashboard-token";
