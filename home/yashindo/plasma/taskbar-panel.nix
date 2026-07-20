@@ -3,16 +3,20 @@
   lib,
   pkgs,
   ...
-}:
-{
+}: {
   options.modules.taskbar-panel.enable = lib.mkEnableOption "KDE Plasma Bottom Panel";
 
   config = lib.mkIf config.modules.taskbar-panel.enable {
     home.file.".local/share/icons/NixOS.svg".source = ./icons/NixOS.svg;
 
+    home.file.".config/kickoffrc".text = ''
+      [General]
+      UseFuzzySearch=true
+    '';
+
     xdg.mimeApps = {
       enable = true;
-      defaultApplications."inode/directory" = [ "org.kde.dolphin.desktop" ];
+      defaultApplications."inode/directory" = ["org.kde.dolphin.desktop"];
     };
 
     programs.plasma = {
