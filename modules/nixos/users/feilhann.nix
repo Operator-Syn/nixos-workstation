@@ -16,6 +16,14 @@
     ];
   };
 
+  users.groups."hermes-projects-write" = {
+    members = ["feilhann"];
+  };
+
+  users.groups."feilhann-home-admin" = {
+    members = ["yashindo"];
+  };
+
   users.users.feilhann = {
     isNormalUser = true;
     description = "Feilhann";
@@ -27,7 +35,7 @@
   };
 
   systemd.tmpfiles.rules = [
-    "d /home/feilhann 0700 feilhann feilhann - -"
+    "d /home/feilhann 0770 feilhann feilhann - -"
   ];
 
 }
