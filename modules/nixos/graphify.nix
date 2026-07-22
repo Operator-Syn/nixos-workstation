@@ -115,6 +115,13 @@
       fi
     done
   '';
+  vaultMarkdownModeFixup = pkgs.writeShellScript "hermes-vault-markdown-mode-fixup" ''
+    set -euo pipefail
+    find=${pkgs.findutils}/bin/find
+    chmod=${pkgs.coreutils}/bin/chmod
+    vault=${lib.escapeShellArg vaultPath}
+    "$find" "$vault" -type f -name '*.md' ! -perm 0660 -exec "$chmod" 0660 {} +
+  '';
 in {
   options.modules.graphify = {
     enable = lib.mkEnableOption "Graphify indexing and MCP server";
@@ -136,8 +143,8 @@ in {
     systemd.services.graphify-hermes-vault = {
       description = "Build the Hermes Obsidian knowledge graph";
       wantedBy = ["multi-user.target"];
-      after = ["network-online.target"];
-      wants = ["network-online.target"];
+      after = ["network-online.target" "hermes-vault-markdown-mode-fixup.service"];
+      wants = ["network-online.target" "hermes-vault-markdown-mode-fixup.service"];
       serviceConfig = {
         Type = "oneshot";
         User = "yashindo";
@@ -150,6 +157,24 @@ in {
         PrivateTmp = true;
         NoNewPrivileges = true;
         UMask = "0007";
+      };
+    };
+
+    systemd.services.hermes-vault-markdown-mode-fixup = {
+      description = "Ensure Hermes vault Markdown files are group-readable (0660)";
+      wantedBy = ["multi-user.target"];
+      after = ["network-online.target"];
+      wants = ["network-online.target"];
+      serviceConfig = {
+        Type = "oneshot";
+        User = "feilhann";
+        Group = "obsidian-hermes";
+        ExecStart = vaultMarkdownModeFixup;
+        ReadWritePaths = [vaultPath];
+        ProtectSystem = "strict";
+        ProtectHome = "read-only";
+        PrivateTmp = true;
+        NoNewPrivileges = true;
       };
     };
 
