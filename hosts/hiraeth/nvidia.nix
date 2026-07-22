@@ -30,10 +30,8 @@
   hardware.nvidia = {
     modesetting.enable = true;
 
-    powerManagement.enable = false;
+    powerManagement.enable = true;
     powerManagement.finegrained = true;
-
-    # Enable NVIDIA Dynamic Boost on AC power. Without nvidia-powerd, this
     # laptop remains at its 40 W base limit instead of using its firmware
     # performance envelope under GPU load.
     dynamicBoost.enable = true;
