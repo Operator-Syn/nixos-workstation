@@ -7,6 +7,10 @@
 }: let
   system = pkgs.stdenv.hostPlatform.system;
   cfg = config.modules.hermes;
+
+  extraSafeWriteRoots = ["/srv/obsidian/hermes-vault" "/var/lib/graphify/hermes-derived-vault" "/home/yashindo/Git" "/home/yashindo/nix-config"];
+  safeWriteRoot = lib.concatStringsSep ":" (["/home/feilhann"] ++ extraSafeWriteRoots);
+
   vaultPath = "/srv/obsidian/hermes-vault";
   graphifyEnabled = lib.attrByPath ["modules" "hermes" "graphify" "enable"] false config;
   graphifyPort = lib.attrByPath ["modules" "hermes" "graphify" "port"] 9292 config;
@@ -113,7 +117,7 @@
     export HOME=/home/yashindo
     export HERMES_HOME=/home/yashindo/.hermes
     export HERMES_MANAGED_DIR=/etc/hermes
-    export HERMES_WRITE_SAFE_ROOT=/home/yashindo
+    export HERMES_WRITE_SAFE_ROOT=${safeWriteRoot}
     export HERMES_BUNDLED_SKILLS=${hermes}/share/hermes-agent/skills
     export HERMES_BUNDLED_PLUGINS=${hermesPlugins}
     export HERMES_BUNDLED_LOCALES=${hermes}/share/hermes-agent/locales
@@ -148,7 +152,7 @@
       HOME=/home/feilhann \
       HERMES_HOME=/home/feilhann/.hermes \
       HERMES_MANAGED_DIR=/etc/hermes \
-      HERMES_WRITE_SAFE_ROOT=/home/feilhann \
+      HERMES_WRITE_SAFE_ROOT=${safeWriteRoot} \
       ${hermes}/bin/hermes auth add openai-codex
   '';
 
@@ -470,7 +474,7 @@ in {
         HOME = "/home/feilhann";
         HERMES_HOME = "/home/feilhann/.hermes";
         HERMES_MANAGED_DIR = "/etc/hermes";
-        HERMES_WRITE_SAFE_ROOT = "/home/feilhann";
+        HERMES_WRITE_SAFE_ROOT = "${safeWriteRoot}";
         PYTHONPATH = ddgsPythonPath;
         AGENT_BROWSER_EXECUTABLE_PATH = "${pkgs.chromium}/bin/chromium";
         AGENT_BROWSER_PROFILE = "/home/feilhann/.hermes/browser-profile";
@@ -496,7 +500,7 @@ in {
         PrivateTmp = true;
         ProtectSystem = "strict";
         ProtectHome = "read-only";
-        ReadWritePaths = ["/home/feilhann"];
+        ReadWritePaths = ["/home/feilhann" "/home/yashindo/Git" "/home/yashindo/nix-config"];
         ProtectControlGroups = true;
         ProtectKernelModules = true;
         ProtectKernelTunables = true;
