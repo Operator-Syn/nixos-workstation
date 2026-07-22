@@ -82,6 +82,14 @@
       target = "feilhann";
       access = "read-write";
     }
+    # ── ADDED: declarative write grant for feilhann on nix-config ──
+    {
+      name = "hermes-nix-config-write";
+      reader = "feilhann";
+      target = "yashindo";
+      paths = ["nix-config"];
+      access = "read-write";
+    }
   ];
 
   systemd.services.home-acl-reconcile = {
