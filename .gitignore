@@ -4,3 +4,7 @@ node_modules/
 # Pipenv and Graphify are project-local development artifacts.
 .venv/
 graphify-out/
+
+# Python bytecode caches are build artifacts, not source.
+__pycache__/
+*.py[cod]
