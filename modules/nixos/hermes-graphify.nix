@@ -34,6 +34,7 @@ in {
     systemd.services.hermes-desktop-backend = {
       environment.OBSIDIAN_VAULT_PATH = vaultPath;
       serviceConfig.ReadWritePaths = [vaultPath];
+      serviceConfig.UMask = lib.mkForce "0007";
     };
   };
 }
