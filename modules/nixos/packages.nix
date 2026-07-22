@@ -1,4 +1,4 @@
-{ pkgs, ... }: {
+{pkgs, ...}: {
   imports = [
     ./scripts.nix
   ];
@@ -21,6 +21,7 @@
     tcpdump
     tree
     openssl
+    dmidecode
     wl-clipboard
     rustc
     cargo
