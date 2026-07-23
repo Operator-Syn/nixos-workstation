@@ -100,9 +100,13 @@ systemctl status home-acl-reconcile.service --no-pager
 
 Hiraeth's ACL direction is intentionally asymmetric. The `feilhann-home-admin`
 group contains only `yashindo` and grants Yashindo full access to Feilhann's
-home. The reverse permissions are limited to Feilhann's read-only audit view of
-Yashindo's home, excluding `Git`, plus the separate Feilhann Git write policy.
-The ACL reconciler applies these declarations after tmpfiles resetup.
+home. Explicit administrator ACLs also cover Feilhann-created content in
+`/home/yashindo/Git`, `/home/yashindo/nix-config`, and the full shared vault at
+`/srv/obsidian/hermes-vault`. The reverse permissions remain limited to
+Feilhann's read-only audit view of Yashindo's home, excluding `Git`, plus the
+separate Feilhann Git write policy. The canonical ACL reconciler applies these
+declarations after tmpfiles resetup; scoped Git and nix-config policies also
+have path-triggered self-heal units.
 
 ## Hiraeth ASUS and NVIDIA Compatibility
 
@@ -115,6 +119,13 @@ The host therefore uses `pkgsUnstable.linuxPackages_latest` together with
 `hardware.nvidia.open = true` and the matching latest NVIDIA package from that
 kernel package set. Both the `asus-armoury` module and the NVIDIA modules must
 be present in the built generation before switching to it.
+
+The NVIDIA host configuration enables Dynamic Boost while keeping fine-grained
+power management enabled and the NVIDIA power-management service disabled in
+the rollback configuration. Dynamic Boost is firmware- and GPU-mode-dependent;
+`nvidia-smi -q -d POWER` is the authoritative check for the active and maximum
+power limits. A 90 W maximum does not mean the current boot is permitted to use
+90 W, especially in ASUS Hybrid mode.
 
 Before activation, verify the candidate generation contains:
 
