@@ -21,10 +21,14 @@ modules/
     |-- graphify.nix      Graphify services and indexing
     |-- hermes-graphify.nix Hermes-to-Graphify integration
     |-- obsidian-hermes-vault.nix shared Obsidian vault
+    |-- netbird.nix       NetBird VPN client
+    |-- ollama.nix        optional local Ollama service
     |-- kvm-manager.nix   KVM/libvirt and virt-manager
     |-- networking.nix    NetworkManager
     |-- packages.nix      system package list
     |-- scripts.nix       helper commands
+    |-- steam.nix         Steam, GameMode, launchers, and Proton tools
+    |-- steam/            Steam submodules
     `-- virtualisation.nix Docker
 ```
 
@@ -42,8 +46,11 @@ modules/
 | `graphify.nix` | Graphify indexing service and watcher |
 | `hermes-graphify.nix` | Hermes Graphify integration services |
 | `obsidian-hermes-vault.nix` | shared Obsidian vault wiring |
+| `netbird.nix` | NetBird VPN client |
+| `ollama.nix` | optional local Ollama service; currently not enabled by Hiraeth |
 | `packages.nix` | system-wide packages |
 | `scripts.nix` | `rebuild`, `update-system`, `update-hardware`, `nvrun`, `getGPU` |
+| `steam.nix` and `steam/` | Steam, GameMode, gamescope, launchers, and Protontricks support |
 | `kvm-manager.nix` | KVM/libvirt services and virt-manager |
 | `virtualisation.nix` | Docker service |
 
@@ -107,3 +114,9 @@ KDE Plasma's `power-profiles-daemon` owns the generic platform profile. ASUS
 controls remain responsible for firmware-specific features such as charge
 thresholds, keyboard lighting, fan curves, and Armoury features. Do not add
 Windows G-Helper, Wine, or a second GPU-switching daemon to this stack.
+
+`security/home-acl.nix` supports administrator principals for inherited
+read-write access and optional absolute roots for shared non-home trees. The
+Hiraeth host uses those features for Feilhann's home, Git, nix-config, and the
+shared Obsidian vault. Unix ownership is preserved; ACL reconciliation supplies
+the shared administrative access.
