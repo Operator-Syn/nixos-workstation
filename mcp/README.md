@@ -37,7 +37,7 @@ The declarative ACL contract requires dedicated groups, separate read-only audit
 
 All paths must remain inside the repository. Symlink paths, `.git`, `secrets/`, `.env*`, private keys, and certificate files are denied. Temporary workspaces also exclude denied paths. Mutations fail when a prepared file changed or when unrelated dirty files would be affected.
 
-Protected Hermes state and vault plans are not MCP mutation targets, even though the operating-system ACL grants Yashindo access to Feilhann's home. The Hermes working-plan directory and the shared vault are separate authority domains; MCP does not infer live permissions from evaluated or built Nix output.
+Protected Hermes state and vault plans are not MCP mutation targets, even though operating-system ACLs grant Yashindo access to Feilhann's home and the shared vault. The Hermes working-plan directory and the shared vault are separate authority domains; MCP does not infer live permissions from evaluated or built Nix output.
 
 ## Main workflow
 
@@ -45,8 +45,13 @@ Protected Hermes state and vault plans are not MCP mutation targets, even though
 inspect → prepare → review diff and approval hash → apply → validate → prepare commits → approve commits
 ```
 
-Run the tests with:
+Run the MCP tests with:
 
 ```sh
-bun test mcp
+bun run mcp:test
 ```
+
+The test suite includes protocol coverage for the declarative-contract result.
+That contract recognizes one canonical locked `home-acl-reconcile` service,
+optional path-triggered ACL watcher services, administrator ACL principals, and
+external shared roots such as `/srv/obsidian/hermes-vault`.
