@@ -17,6 +17,8 @@ This repo is meant to be readable first: each folder owns one layer of the syste
 | `mcp/` | Repository-scoped Project MCP and contract tests | `mcp/src/server.ts` |
 | `scripts/` | Graphify, audit, and repository helper scripts | `scripts/rebuild_graphify.sh` |
 | `tests/` | Python helper and integration tests | `tests/` |
+| `Pipfile` / `Pipfile.lock` | Locked Graphify and Python test environment | `pipenv` |
+| `package.json` / `bun.lock` | Project MCP runtime and Bun tests | `bun` |
 | `flake.nix` | Flake inputs, outputs, system wiring | `flake.nix` |
 
 ## Repository Map
@@ -46,12 +48,14 @@ This repo is meant to be readable first: each folder owns one layer of the syste
 | Enter default dev shell | `nix develop ~/nix-config` |
 | Enter Node dev shell | `nix develop ~/nix-config#node` |
 | Enter Python + Playwright shell | `nix develop ~/nix-config#python-playwright` |
-| Test the Project MCP | `bun test mcp` |
+| Test the Project MCP | `bun run mcp:test` |
 | Test Hermes and Graphify helpers | `pipenv run python -m unittest discover -s tests` |
+| Query the repository graph | `pipenv run graphify query "your question"` |
+| Refresh the incremental graph | `pipenv run graphify update .` |
 | Create declared Debian Distrobox | `assemble-debian-dev` |
 | Enter Debian Distrobox | `distrobox enter debian-dev` |
 
-`rb` is the fish alias for the repository's `rebuild` helper. It scans hardware, activates the NixOS generation, and requests the unified ACL reconciliation service. Activation is still user-owned and should be followed by live checks such as `systemctl --failed` and `systemctl status home-acl-reconcile.service --no-pager`.
+`rb` is the fish alias for the repository's `rebuild` helper. It scans hardware, activates the NixOS generation, and starts the unified ACL reconciliation service. Activation is still user-owned and should be followed by live checks such as `systemctl --failed`, `systemctl status home-acl-reconcile.service --no-pager`, and targeted `getfacl` checks.
 
 ## How The Layers Fit
 
@@ -74,7 +78,7 @@ flake.nix
 
 This repository provides a local stdio MCP server for repository-aware NixOS work. It can inspect the flake, prepare isolated patches, apply explicitly approved file changes, validate the flake, and create separately approved one-file commits. It cannot run privileged system activation or arbitrary shell commands. See [`mcp/README.md`](mcp/README.md) for the authority model and setup.
 
-The Project MCP also exposes read-only authority and declarative-contract checks. They enforce the distinction between repository changes prepared by an agent and live NixOS activation performed by the user. In particular, ACLs are declared in Nix, write access uses dedicated groups, read-only audit access stays separate, and the single locked `home-acl-reconcile` service is the only scheduled ACL repair path. Built configuration and Graphify output are evidence, not substitutes for live verification.
+The Project MCP also exposes read-only authority and declarative-contract checks. They enforce the distinction between repository changes prepared by an agent and live NixOS activation performed by the user. In particular, ACLs are declared in Nix, write access uses dedicated groups and administrator ACLs, read-only audit access stays separate, and one locked `home-acl-reconcile` service remains the canonical reconciliation path. Path-triggered watcher services provide faster self-healing for scoped project trees. Built configuration and Graphify output are evidence, not substitutes for live verification.
 
 The read-only `read_authority_contract` tool describes this boundary, while `validate_declarative_contract` checks the repository source for the unified ACL service and timer, global locking, policy ordering, Git exclusions, Hermes managed mode, backend group membership, and safe MCP command boundaries. These checks do not inspect live `/run`, user homes, credentials, or the protected vault.
 
@@ -82,9 +86,9 @@ The MCP may inspect the repository, prepare patches, apply explicitly approved p
 
 ## Declarative ACL And Hermes Boundaries
 
-Home permissions are reconciled declaratively by `home-acl-reconcile.service` and its single persistent timer. The service takes a global lock and applies policies in a fixed order. `feilhann-home-admin` gives only `yashindo` full read-write access to the entire `/home/feilhann` tree, including hidden state and future files. The existing reverse policies remain separate: Feilhann receives read-only audit access to Yashindo's home with `Git` excluded, and retains dedicated read-write access to Yashindo's `Git` tree. `rb` is the repository rebuild workflow, but a successful build or activation does not replace live service and permission checks.
+Home and project permissions are reconciled declaratively by `home-acl-reconcile.service` and its single persistent timer. The service takes a global lock and applies policies in a fixed order. `feilhann-home-admin` gives only `yashindo` full read-write access to the entire `/home/feilhann` tree, including hidden state and future files. Explicit administrator ACLs also preserve Yashindo's operational access to Feilhann-created content under `/home/yashindo/Git` and `/home/yashindo/nix-config`, plus the full `/srv/obsidian/hermes-vault` tree. The existing reverse policies remain separate: Feilhann receives read-only audit access to Yashindo's home with `Git` excluded, and retains dedicated read-write access to Yashindo's `Git` tree. `rb` is the repository rebuild workflow, but a successful build or activation does not replace live service and permission checks.
 
-Hermes uses `/etc/hermes` for managed configuration. Yashindo's operating-system ACL access to Feilhann's private Hermes state does not expand the Project MCP authority: MCP still cannot read or mutate `/home/feilhann/.hermes/`, credentials, or vault plans. The working plans under `/home/feilhann/.hermes/plans/` and the protected shared-vault plan copies under `/srv/obsidian/hermes-vault/40 Plans/` are separate authority domains and are not automatically synchronized or made writable by MCP.
+Hermes uses `/etc/hermes` for managed configuration. Yashindo's operating-system ACL access to Feilhann's private Hermes state and the shared vault does not expand the Project MCP authority: MCP still cannot read or mutate `/home/feilhann/.hermes/`, credentials, or vault plans. The working plans under `/home/feilhann/.hermes/plans/` and the protected shared-vault plan copies under `/srv/obsidian/hermes-vault/40 Plans/` are separate authority domains and are not automatically synchronized or made writable by MCP.
 
 ## Project Graphify
 
