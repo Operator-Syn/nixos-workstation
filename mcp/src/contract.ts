@@ -26,7 +26,9 @@ export const authorityContract = {
     "The feilhann-home-admin group grants Yashindo full access only to Feilhann's home.",
     "Broad read-only policies exclude narrower write scopes.",
     "The existing reverse audit and Git policies remain intentional exceptions.",
-    "One home-acl reconciliation service and persistent timer serialize repairs.",
+    "One canonical home-acl reconciliation service and persistent timer serialize repairs; path-triggered watchers provide scoped self-heal.",
+    "Administrator ACL principals preserve Yashindo's operational access to Feilhann-created Git, nix-config, and shared-vault content without changing Unix ownership.",
+    "External shared roots such as /srv/obsidian/hermes-vault are covered by declarative ACL policies.",
     "tmpfiles modes preserve required ACL masks.",
   ],
   graphifyBoundary: "Graphify is read-only discovery; Nix source and flake checks remain authoritative.",
@@ -58,6 +60,15 @@ function find(source: string, pattern: RegExp): boolean {
   return pattern.test(source);
 }
 
+function policyBlock(source: string, name: string): string {
+  const marker = `name = "${name}"`;
+  const start = source.indexOf(marker);
+  if (start < 0) return "";
+
+  const next = source.indexOf('name = "', start + marker.length);
+  return source.slice(start, next < 0 ? source.length : next);
+}
+
 export function validateDeclarativeContract(sources: ContractSources) {
   const findings: ContractFinding[] = [];
   const add = (finding: ContractFinding) => findings.push(finding);
@@ -78,7 +89,7 @@ export function validateDeclarativeContract(sources: ContractSources) {
   const scripts = sources["modules/nixos/scripts.nix"] ?? "";
   const mcp = sources["mcp/src/server.ts"] ?? "";
 
-  check("unified-service", has(acl, "systemd.services.home-acl-reconcile"), "A single home-acl-reconcile service is declared.", "modules/nixos/security/home-acl.nix", "systemd.services.home-acl-reconcile");
+  check("unified-service", find(acl, /systemd\.services(?:\.home-acl-reconcile|\s*=\s*lib\.mkMerge)[\s\S]{0,320}home-acl-reconcile\s*=/), "The canonical home-acl-reconcile service is declared; path watchers remain auxiliary self-heal units.", "modules/nixos/security/home-acl.nix", "home-acl-reconcile");
   check("unified-timer", has(acl, "systemd.timers.home-acl-reconcile") && has(acl, "Persistent = true"), "The unified ACL timer is persistent and declarative.", "modules/nixos/security/home-acl.nix", "systemd.timers.home-acl-reconcile");
   check("global-lock", has(acl, "home-acl-reconcile.lock") && has(acl, "flock 9"), "ACL reconciliation uses one global lock.", "modules/nixos/security/home-acl.nix", "home-acl-reconcile.lock");
   const policyOrder = ["hermes-home-audit", "hermes-projects-write", "feilhann-home-admin"];
@@ -89,9 +100,14 @@ export function validateDeclarativeContract(sources: ContractSources) {
   check("reverse-audit-policy", find(host, /name = "hermes-home-audit"[\s\S]{0,320}reader = "feilhann"[\s\S]{0,320}target = "yashindo"/), "The existing Feilhann-to-Yashindo audit policy remains intact.", "hosts/hiraeth/default.nix", "name = \"hermes-home-audit\"");
   check("dedicated-write-group", has(users, "hermes-projects-write") && has(host, "readerGroup = \"hermes-projects-write\""), "Git write access uses a dedicated group.", "modules/nixos/users/feilhann.nix", "hermes-projects-write");
   check("full-home-admin-group", find(users, /users\.groups\.\"feilhann-home-admin\"[\s\S]{0,160}members = \[\"yashindo\"\]/), "The full-home admin group contains only Yashindo.", "modules/nixos/users/feilhann.nix", "feilhann-home-admin");
-  const fullHomeAdmin = find(host, /name = "feilhann-home-admin"[\s\S]{0,520}reader = "yashindo"[\s\S]{0,520}readerGroup = "feilhann-home-admin"[\s\S]{0,520}target = "feilhann"[\s\S]{0,520}access = "read-write"/);
+  const fullHomeAdminBlock = policyBlock(host, "feilhann-home-admin");
+  const fullHomeAdmin = fullHomeAdminBlock.includes('reader = "yashindo"') && fullHomeAdminBlock.includes('readerGroup = "feilhann-home-admin"') && fullHomeAdminBlock.includes('target = "feilhann"') && fullHomeAdminBlock.includes('access = "read-write"');
   check("full-home-admin-policy", fullHomeAdmin, "Yashindo receives full read-write access to Feilhann's entire home through the dedicated group.", "hosts/hiraeth/default.nix", "name = \"feilhann-home-admin\"");
-  check("full-home-admin-direction", !find(host, /name = "feilhann-home-admin"[\s\S]{0,520}reader = "feilhann"[\s\S]{0,520}target = "yashindo"/), "The full-home admin policy does not grant Feilhann broad access to Yashindo's home.", "hosts/hiraeth/default.nix", "name = \"feilhann-home-admin\"");
+  check("full-home-admin-direction", !fullHomeAdminBlock.includes('reader = "feilhann"') && !fullHomeAdminBlock.includes('target = "yashindo"'), "The full-home admin policy does not grant Feilhann broad access to Yashindo's home.", "hosts/hiraeth/default.nix", "name = \"feilhann-home-admin\"");
+  const administratorPolicies = ["hermes-projects-write", "feilhann-home-admin", "hermes-nix-config-write"];
+  check("administrator-acl-policies", administratorPolicies.every((name) => policyBlock(host, name).includes('administrators = ["yashindo"]')), "Yashindo is declared as an administrator for the home, Git, and nix-config ACL scopes.", "hosts/hiraeth/default.nix", "administrators = [\"yashindo\"]");
+  const vaultPolicy = policyBlock(host, "hermes-vault-admin");
+  check("vault-acl-policy", vaultPolicy.includes('root = "/srv/obsidian/hermes-vault"') && vaultPolicy.includes('administrators = ["yashindo"]') && vaultPolicy.includes('access = "read-write"'), "The shared vault has an explicit read-write administrator ACL policy.", "hosts/hiraeth/default.nix", "name = \"hermes-vault-admin\"");
   check("tmpfiles-home-mask", has(users, "d /home/feilhann 0770") && has(hermes, "d /home/feilhann/.hermes 0770") && has(hermes, "d /home/feilhann/.hermes/browser-profile 0770"), "tmpfiles modes preserve the full read-write ACL masks.", "modules/nixos/users/feilhann.nix", "d /home/feilhann 0770");
   check("backend-write-group", has(hermes, '"hermes-projects-write"'), "The Hermes backend receives the project-write supplementary group.", "modules/nixos/hermes.nix", '"hermes-projects-write"');
   check("audit-home-visibility", has(hermes, 'ProtectHome = "read-only"'), "The privileged audit can inspect home ACL metadata without write access.", "modules/nixos/hermes.nix", 'ProtectHome = "read-only"');
