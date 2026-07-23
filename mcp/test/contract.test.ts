@@ -3,7 +3,10 @@ import {validateDeclarativeContract, type ContractSources} from "../src/contract
 
 const validSources: ContractSources = {
   "modules/nixos/security/home-acl.nix": `
-systemd.services.home-acl-reconcile = {};
+systemd.services = lib.mkMerge [
+  { home-acl-reconcile = {}; }
+  { home-acl-watch-hermes-projects-write = {}; }
+];
 systemd.timers.home-acl-reconcile = { Persistent = true; };
 lock=/run/lock/home-acl-reconcile.lock
 flock 9
@@ -12,8 +15,10 @@ hermes-repair-acls: systemctl start home-acl-reconcile.service
   "hosts/hiraeth/default.nix": `
 services.homeAcl.policies = [
   { name = "hermes-home-audit"; reader = "feilhann"; readerGroup = "hermes-audit-readonly"; target = "yashindo"; excludeDirectories = ["Git"]; }
-  { name = "hermes-projects-write"; readerGroup = "hermes-projects-write"; }
-  { name = "feilhann-home-admin"; reader = "yashindo"; readerGroup = "feilhann-home-admin"; target = "feilhann"; access = "read-write"; }
+  { name = "hermes-projects-write"; readerGroup = "hermes-projects-write"; administrators = ["yashindo"]; }
+  { name = "feilhann-home-admin"; reader = "yashindo"; readerGroup = "feilhann-home-admin"; target = "feilhann"; administrators = ["yashindo"]; access = "read-write"; }
+  { name = "hermes-nix-config-write"; reader = "feilhann"; target = "yashindo"; administrators = ["yashindo"]; access = "read-write"; }
+  { name = "hermes-vault-admin"; reader = "feilhann"; target = "yashindo"; root = "/srv/obsidian/hermes-vault"; administrators = ["yashindo"]; access = "read-write"; }
 ];
 systemd.services.home-acl-reconcile = { after = ["hermes-desktop-backend.service" "systemd-tmpfiles-resetup.service"]; };
 `,
@@ -52,7 +57,7 @@ describe("declarative contract validator", () => {
   test("detects missing full-home admin policy", () => {
     const sources = {
       ...validSources,
-      "hosts/hiraeth/default.nix": validSources["hosts/hiraeth/default.nix"].replace('  { name = "feilhann-home-admin"; reader = "yashindo"; readerGroup = "feilhann-home-admin"; target = "feilhann"; access = "read-write"; }\n', ""),
+      "hosts/hiraeth/default.nix": validSources["hosts/hiraeth/default.nix"].replace('  { name = "feilhann-home-admin"; reader = "yashindo"; readerGroup = "feilhann-home-admin"; target = "feilhann"; administrators = ["yashindo"]; access = "read-write"; }\n', ""),
     };
     const result = validateDeclarativeContract(sources);
     expect(result.findings.map((finding) => finding.id)).toEqual(expect.arrayContaining(["policy-order", "full-home-admin-group", "full-home-admin-policy"]));
@@ -83,6 +88,13 @@ describe("declarative contract validator", () => {
   test("detects generation-sensitive rb helper paths", () => {
     const sources = {...validSources, "modules/nixos/scripts.nix": "if ! /run/current-system/sw/bin/hermes-repair-acls; then true; fi"};
     expect(validateDeclarativeContract(sources).findings.find((finding) => finding.id === "rebuild-entrypoint")?.severity).toBe("error");
+  });
+
+  test("accepts path watchers and administrator root policies", () => {
+    const result = validateDeclarativeContract(validSources);
+    expect(result.findings.find((finding) => finding.id === "unified-service")?.severity).toBe("ok");
+    expect(result.findings.find((finding) => finding.id === "administrator-acl-policies")?.severity).toBe("ok");
+    expect(result.findings.find((finding) => finding.id === "vault-acl-policy")?.severity).toBe("ok");
   });
 
   test("detects privileged MCP command expansion", () => {
