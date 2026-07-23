@@ -73,6 +73,7 @@
       readerGroup = "hermes-projects-write";
       target = "yashindo";
       paths = ["Git"];
+      administrators = ["yashindo"];
       access = "read-write";
     }
     {
@@ -80,6 +81,7 @@
       reader = "yashindo";
       readerGroup = "feilhann-home-admin";
       target = "feilhann";
+      administrators = ["yashindo"];
       access = "read-write";
     }
     # ── ADDED: declarative write grant for feilhann on nix-config ──
@@ -88,6 +90,16 @@
       reader = "feilhann";
       target = "yashindo";
       paths = ["nix-config"];
+      administrators = ["yashindo"];
+      access = "read-write";
+    }
+    {
+      name = "hermes-vault-admin";
+      reader = "feilhann";
+      readerGroup = "obsidian-hermes";
+      target = "yashindo";
+      root = "/srv/obsidian/hermes-vault";
+      administrators = ["yashindo"];
       access = "read-write";
     }
   ];
