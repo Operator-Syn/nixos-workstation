@@ -34,7 +34,10 @@
     concatStringsSep " -o " (map (name: "-name '${name}'") (excludedDirectoryNames policy));
 
   isSafeIdentity = name: builtins.match "[a-z_][a-z0-9_-]*" name != null;
-  targetHome = policy: lib.attrByPath [policy.target "home"] "/nonexistent" config.users.users;
+  targetHome = policy:
+    if policy.root != null
+    then policy.root
+    else lib.attrByPath [policy.target "home"] "/nonexistent" config.users.users;
   readerIsGroupMember = policy:
     policy.readerGroup
     == null
@@ -47,9 +50,12 @@
       )
     );
   aclEntries = policy:
-    if policy.readerGroup == null
-    then ["u:${policy.reader}"]
-    else ["g:${policy.readerGroup}"];
+    (
+      if policy.readerGroup == null
+      then ["u:${policy.reader}"]
+      else ["g:${policy.readerGroup}"]
+    )
+    ++ map (administrator: "u:${administrator}") policy.administrators;
   directoryPermissions = policy:
     if policy.access == "read-write"
     then "rwx"
@@ -266,6 +272,38 @@
       echo "home ACL (${policy.name}): repair complete"
     '';
 
+  mkWatch = policy:
+    let
+      watchUnit = "home-acl-watch-${policy.name}";
+      watchTargets = lib.concatMapStringsSep " " (p: ''"${targetHome policy}/${p}"'') policy.paths;
+    in {
+      systemd.paths."${watchUnit}" = {
+        wantedBy = [ "paths.target" ];
+        pathConfig = {
+          # IN_CREATE | IN_MOVED_TO | IN_MODIFY on any file in the subtrees.
+          # PathModified= tracks file content/metadata changes (unlike
+          # PathChanged= which only watches the directory mtime), so newly
+          # created files collapse their mask to --- and are repaired fast.
+          PathModified = watchTargets;
+        };
+      };
+      systemd.services."${watchUnit}" = {
+        serviceConfig = {
+          Type = "oneshot";
+          # Reuse the identical fileAcl script the reconcile applies, so
+          # behavior stays byte-for-byte faithful to the policy.
+          ExecStart = "${mkApplyScript policy "files"} ${watchTargets}";
+          Nice = 10;
+          IOSchedulingClass = "idle";
+        };
+      };
+    };
+
+  watchUnits = lib.listToAttrs (
+    map (p: lib.nameValuePair "home-acl-watch-${p.name}" (mkWatch p))
+      (lib.filter (p: p.access == "read-write" && p.paths != []) cfg.policies)
+  );
+
   reconcileScript = pkgs.writeShellScript "home-acl-reconcile" ''
     set -eu
 
@@ -325,6 +363,16 @@ in {
                 type = types.str;
                 description = "User granted read/search/execute access.";
               };
+              administrators = mkOption {
+                type = types.listOf types.str;
+                default = [];
+                description = "Users granted durable administrative access alongside the reader.";
+              };
+              root = mkOption {
+                type = types.nullOr types.str;
+                default = null;
+                description = "Optional absolute path to reconcile instead of the target user's home.";
+              };
               target = mkOption {
                 type = types.str;
                 description = "User whose configured home directory receives the ACL.";
@@ -377,6 +425,18 @@ in {
           message = "services.homeAcl policy '${policy.name}' references missing target '${policy.target}'.";
         }
         {
+          assertion = lib.all (administrator: builtins.hasAttr administrator config.users.users) policy.administrators;
+          message = "services.homeAcl policy '${policy.name}' references a missing administrator.";
+        }
+        {
+          assertion = lib.all isSafeIdentity policy.administrators;
+          message = "services.homeAcl policy '${policy.name}' administrators must be safe system identities.";
+        }
+        {
+          assertion = policy.root == null || lib.hasPrefix "/" policy.root;
+          message = "services.homeAcl policy '${policy.name}' root must be an absolute path.";
+        }
+        {
           assertion = policy.readerGroup == null || builtins.hasAttr policy.readerGroup config.users.groups;
           message = "services.homeAcl policy '${policy.name}' references a missing ACL group.";
         }
@@ -421,17 +481,30 @@ in {
         }
       ];
 
-    systemd.services.home-acl-reconcile = {
-      description = "Reconcile configured home ACL policies";
-      after = ["systemd-tmpfiles-resetup.service"];
-      serviceConfig = {
-        Type = "oneshot";
-        ExecStart = reconcileScript;
-        TimeoutStartSec = "45min";
-        Nice = 10;
-        IOSchedulingClass = "idle";
-      };
-    };
+    systemd.services = lib.mkMerge [
+      {
+        home-acl-reconcile = {
+          description = "Reconcile configured home ACL policies";
+          after = ["systemd-tmpfiles-resetup.service"];
+          serviceConfig = {
+            Type = "oneshot";
+            ExecStart = reconcileScript;
+            TimeoutStartSec = "45min";
+            Nice = 10;
+            IOSchedulingClass = "idle";
+          };
+        };
+      }
+      # Primary, writer-agnostic ACL self-heal: any write under a read-write
+      # policy subtree (e.g. /home/yashindo/Git, /home/yashindo/nix-config)
+      # re-applies the policy fileAcl within seconds. Covers agent writes,
+      # git checkouts, external tools, and other subagents. The 6h
+      # home-acl-reconcile.timer remains the guaranteed floor.
+      (lib.mapAttrs' (n: v: lib.nameValuePair n v.systemd.services.${n}) watchUnits)
+    ];
+
+    # Primary, writer-agnostic ACL self-heal (path units; see systemd.services above).
+    systemd.paths = lib.mapAttrs' (n: v: lib.nameValuePair n v.systemd.paths.${n}) watchUnits;
 
     systemd.timers.home-acl-reconcile = {
       description = "Reconcile configured home ACL policies periodically";
