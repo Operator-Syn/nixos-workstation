@@ -411,7 +411,10 @@ in {
     };
 
     environment.etc."hermes/config.yaml".text = builtins.toJSON {
-      model.provider = "openai-codex";
+      # Keep provider selection explicit so a logged-in OAuth provider cannot
+      # silently become the inference backend. This intentionally selects the
+      # Nous provider rather than the Codex provider.
+      model.provider = "nous";
 
       toolsets = [
         "terminal"
