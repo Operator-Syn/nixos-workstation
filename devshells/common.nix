@@ -18,6 +18,7 @@ in rec {
     libdrm
     libffi
     libxcb
+    xorg.libX11
     libxkbcommon
     libxml2
     libxslt
@@ -47,6 +48,7 @@ in rec {
   ];
 
   playwrightEnv = {
+    LD_LIBRARY_PATH = lib.makeLibraryPath nativeLibraries;
     PLAYWRIGHT_BROWSERS_PATH = "${pkgs.playwright-driver.browsers}";
     PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1";
   };
