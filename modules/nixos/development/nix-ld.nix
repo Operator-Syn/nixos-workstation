@@ -10,6 +10,7 @@
       curl
       libffi
       sqlite
+      xorg.libX11
     ];
   };
 }
