@@ -21,6 +21,7 @@
     tcpdump
     tree
     openssl
+    xorg.libX11
     dmidecode
     wl-clipboard
     rustc
