@@ -79,13 +79,15 @@ Review changes carefully before committing, especially anything involving filesy
 
 ## Switching This Host
 
-The fish alias `rb` runs the repository rebuild helper, including the hardware scan and post-activation ACL reconciliation request:
+The canonical activation command is the Fish alias `rb`:
 
 ```sh
 rb
 ```
 
-For a direct activation without the helper:
+The system-wide `rebuild` helper performs the hardware refresh, NixOS activation, and post-activation ACL reconciliation. Use `rebuild` directly when Fish aliases are unavailable. Use `update-system` to update flake inputs before running the same rebuild workflow, or `uh`/`update-hardware` when only the hardware scan is needed.
+
+For a low-level activation that intentionally bypasses the custom hardware refresh and ACL reconciliation:
 
 ```sh
 sudo nixos-rebuild switch --flake ~/nix-config#nixos --cores "$(nproc)" --show-trace
