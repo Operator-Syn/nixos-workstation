@@ -12,6 +12,7 @@
     ./firefox.nix
     ./fish.nix
     ./git.nix
+    ./gh.nix
     ./goose.nix
     ./hermes-desktop.nix
     ./latex.nix
@@ -44,6 +45,7 @@
     firefox.enable = true;
     fish.enable = true;
     git.enable = true;
+    gh.enable = true;
     goose.enable = false;
     hermes-desktop.enable = true;
     latex.enable = true;
