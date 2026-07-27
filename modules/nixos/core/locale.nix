@@ -20,4 +20,6 @@
   };
 
   time.timeZone = "Asia/Manila";
+  time.hardwareClockInLocalTime = false;
+  services.timesyncd.enable = true;
 }
