@@ -1,6 +1,7 @@
 {inputs, ...}: {
   imports = [
     inputs.aagl.nixosModules.default
+    inputs.sops-nix.nixosModules.sops
 
     ./hardware-configuration.nix
     ./storage.nix
@@ -36,6 +37,15 @@
     ../../modules/nixos/virtualisation.nix
     ../../modules/nixos/steam.nix
   ];
+
+  sops.age.keyFile = "/home/yashindo/.config/sops/age/keys.txt";
+  sops.secrets.gh_token = {
+    sopsFile = ../../secrets/gh.yaml;
+    key = "token";
+    owner = "feilhann";
+    group = "feilhann";
+    mode = "0400";
+  };
 
   nix.settings = inputs.aagl.nixConfig;
 
