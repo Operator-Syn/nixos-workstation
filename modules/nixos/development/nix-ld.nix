@@ -11,6 +11,7 @@
       libffi
       sqlite
       xorg.libX11
+      xorg.libXcomposite
     ];
   };
 }

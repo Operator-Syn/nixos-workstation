@@ -19,6 +19,7 @@ in rec {
     libffi
     libxcb
     xorg.libX11
+    xorg.libXcomposite
     libxkbcommon
     libxml2
     libxslt

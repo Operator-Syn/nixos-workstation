@@ -22,6 +22,7 @@
     tree
     openssl
     xorg.libX11
+    xorg.libXcomposite
     dmidecode
     wl-clipboard
     rustc
