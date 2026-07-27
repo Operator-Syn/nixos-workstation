@@ -43,8 +43,11 @@ This repo is meant to be readable first: each folder owns one layer of the syste
 | Format Nix files | `nix fmt` |
 | Evaluate the flake | `nix flake check --no-build --show-trace` |
 | Build the Hiraeth system | `nix build --no-link .#nixosConfigurations.nixos.config.system.build.toplevel` |
-| Run the repository rebuild workflow | `rb` |
-| Switch system | `sudo nixos-rebuild switch --flake ~/nix-config#nixos --cores "$(nproc)" --show-trace` |
+| Run the canonical rebuild workflow | `rb` |
+| Run the rebuild helper directly | `rebuild` |
+| Update flake inputs and rebuild | `update-system` |
+| Refresh hardware configuration only | `uh` |
+| Direct low-level system switch | `sudo nixos-rebuild switch --flake ~/nix-config#nixos --cores "$(nproc)" --show-trace` |
 | Enter default dev shell | `nix develop ~/nix-config` |
 | Enter Node dev shell | `nix develop ~/nix-config#node` |
 | Enter Python + Playwright shell | `nix develop ~/nix-config#python-playwright` |
@@ -55,7 +58,7 @@ This repo is meant to be readable first: each folder owns one layer of the syste
 | Create declared Debian Distrobox | `assemble-debian-dev` |
 | Enter Debian Distrobox | `distrobox enter debian-dev` |
 
-`rb` is the fish alias for the repository's `rebuild` helper. It scans hardware, activates the NixOS generation, and starts the unified ACL reconciliation service. Activation is still user-owned and should be followed by live checks such as `systemctl --failed`, `systemctl status home-acl-reconcile.service --no-pager`, and targeted `getfacl` checks.
+`rb` is the canonical Fish alias for the system-wide `rebuild` helper. It refreshes the hardware configuration, activates the NixOS generation, and starts the unified ACL reconciliation service. Use `rebuild` directly from another shell, `update-system` to update flake inputs before rebuilding, or `uh`/`update-hardware` when only the hardware scan is needed. The direct `nixos-rebuild` command above is a low-level fallback that bypasses the custom hardware refresh and post-activation ACL reconciliation. Activation is still user-owned and should be followed by live checks such as `systemctl --failed`, `systemctl status home-acl-reconcile.service --no-pager`, and targeted `getfacl` checks.
 
 ## How The Layers Fit
 
