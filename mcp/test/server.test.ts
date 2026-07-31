@@ -17,4 +17,20 @@ describe("project MCP safety policy", () => {
     expect(source).toContain("approvalHash: z.string()");
     expect(source).toContain("getOperation(operationId, approvalHash)");
   });
+
+  test("keeps verification helpers fixed-scope", async () => {
+    const source = await Bun.file("mcp/src/server.ts").text();
+    expect(source).toContain('server.tool("audit_documentation"');
+    expect(source).toContain('server.tool("validate_mcp"');
+    expect(source).toContain('server.tool("validate_repository"');
+    expect(source).toContain('runFixed("bun", ["test", "mcp"]');
+    expect(source).toContain('runAllowed("nix", ["flake", "check", "--no-build", "--show-trace"]');
+  });
+
+  test("allows valid co-author trailers while keeping commit subjects constrained", async () => {
+    const source = await Bun.file("mcp/src/server.ts").text();
+    expect(source).toContain("const [subject, ...trailers] = message.split(\"\\n\")");
+    expect(source).toContain("Co-authored-by:");
+    expect(source).not.toContain("contain no co-author trailer");
+  });
 });
