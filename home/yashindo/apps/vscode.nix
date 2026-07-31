@@ -88,6 +88,7 @@
           "editor.fontFamily" = "'Miracode', 'FiraCode Nerd Font', monospace";
           "editor.fontLigatures" = true;
           "editor.fontSize" = 15;
+          "editor.wordWrap" = "on";
 
           "terminal.integrated.fontFamily" = "'FiraCode Nerd Font'";
           "terminal.integrated.fontSize" = 15;
