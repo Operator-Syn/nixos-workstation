@@ -1,18 +1,23 @@
-import {McpServer} from "@modelcontextprotocol/sdk/server/mcp.js";
-import {StdioServerTransport} from "@modelcontextprotocol/sdk/server/stdio.js";
+import {spawnSync} from "node:child_process";
 import {createHash, randomUUID} from "node:crypto";
-import {cp, mkdir, mkdtemp, readFile, rm, stat, writeFile} from "node:fs/promises";
 import {lstatSync} from "node:fs";
+import {cp, mkdir, mkdtemp, readFile, rm, stat, writeFile} from "node:fs/promises";
 import {tmpdir} from "node:os";
 import {basename, dirname, relative, resolve, sep} from "node:path";
-import {spawnSync} from "node:child_process";
+import {McpServer} from "@modelcontextprotocol/sdk/server/mcp.js";
+import {StdioServerTransport} from "@modelcontextprotocol/sdk/server/stdio.js";
 import {z} from "zod";
+import {fileURLToPath} from "node:url";
 import {authorityContract, validateDeclarativeContract} from "./contract.ts";
 
-const repoRoot = resolve(process.env.NIX_CONFIG_MCP_ROOT ?? process.cwd());
+const serverRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+const repoRoot = resolve(process.env.NIX_CONFIG_MCP_ROOT ?? serverRoot);
 const deniedNames = new Set([".env", ".env.local", ".env.production", "id_rsa", "id_ed25519"]);
-const deniedDirectories = new Set([".git", "secrets", "node_modules"]);
+// `secrets` is denied by all tools except the reviewed whole-tree commit path,
+// which may include secret changes (e.g. SOPS ciphertext) under explicit review.
+const deniedDirectories = new Set([".git", "node_modules"]);
 const operations = new Map<string, Operation>();
+const workingTreeOperations = new Map<string, WorkingTreeOperation>();
 const maxFileBytes = 512 * 1024;
 
 type Change = {
@@ -29,6 +34,20 @@ type Operation = {
   kind: string;
   createdAt: string;
   changes: Change[];
+};
+
+type WorkingTreeSnapshot = {
+  paths: string[];
+  diff: string;
+  contentHashes: Array<{path: string; hash: string | null}>;
+};
+
+type WorkingTreeOperation = {
+  id: string;
+  hash: string;
+  kind: "working-tree-commit";
+  createdAt: string;
+  snapshot: WorkingTreeSnapshot;
 };
 
 const changeSchema = z.object({
@@ -48,7 +67,7 @@ function fail(message: string): never {
   throw new Error(message);
 }
 
-function safeRelativePath(input: string): string {
+function safeRelativePath(input: string, allowSecrets = false): string {
   if (input.includes("\0")) fail("Paths cannot contain NUL bytes.");
   const normalized = input.replaceAll("\\", "/");
   const absolute = resolve(repoRoot, normalized);
@@ -56,8 +75,14 @@ function safeRelativePath(input: string): string {
   if (rel === "" || rel === ".." || rel.startsWith(`..${sep}`) || rel.includes(`${sep}.git${sep}`)) {
     fail("The path must stay inside the repository.");
   }
+  if (rel.startsWith(":")) {
+    fail("Filenames beginning with ':' are denied because Git treats them as pathspec magic.");
+  }
   const parts = rel.split(sep);
-  if (parts.some((part) => deniedNames.has(part) || part.startsWith(".env")) || parts.some((part) => deniedDirectories.has(part))) {
+  if (parts.some((part) => deniedNames.has(part) || part.startsWith(".env"))) {
+    fail("This path is denied by the project MCP security policy.");
+  }
+  if (parts.some((part) => deniedDirectories.has(part) || (part === "secrets" && !allowSecrets))) {
     fail("This path is denied by the project MCP security policy.");
   }
   if (parts.some((part) => /\.(pem|key|p12|pfx|asc)$/i.test(part))) {
@@ -66,8 +91,8 @@ function safeRelativePath(input: string): string {
   return rel.split(sep).join("/");
 }
 
-async function safePath(input: string, mustExist = false): Promise<{relative: string; absolute: string}> {
-  const relativePath = safeRelativePath(input);
+async function safePath(input: string, mustExist = false, allowSecrets = false): Promise<{relative: string; absolute: string}> {
+  const relativePath = safeRelativePath(input, allowSecrets);
   const absolute = resolve(repoRoot, relativePath);
   let current = repoRoot;
   for (const part of relativePath.split("/")) {
@@ -80,7 +105,7 @@ async function safePath(input: string, mustExist = false): Promise<{relative: st
     }
   }
   try {
-    const info = await stat(absolute);
+    await stat(absolute);
     if (lstatSync(absolute).isSymbolicLink()) fail("Symbolic-link paths are denied to prevent repository escapes.");
   } catch (error) {
     if (mustExist || (error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
@@ -92,8 +117,8 @@ function digest(value: string | null): string | null {
   return value === null ? null : createHash("sha256").update(value).digest("hex");
 }
 
-async function readSafeFile(path: string): Promise<string | null> {
-  const target = await safePath(path);
+async function readSafeFile(path: string, allowSecrets = false): Promise<string | null> {
+  const target = await safePath(path, false, allowSecrets);
   try {
     const info = await stat(target.absolute);
     if (!info.isFile() || info.size > maxFileBytes) fail("The file is not a regular file or is too large.");
@@ -171,6 +196,75 @@ function runAllowed(command: string, args: string[], cwd: string, timeout = 120_
   };
 }
 
+function runFixed(command: string, args: string[], cwd = repoRoot, timeout = 120_000) {
+  const completed = spawnSync(command, args, {cwd, encoding: "utf8", timeout, maxBuffer: 4 * 1024 * 1024});
+  return {
+    command: [command, ...args].join(" "),
+    status: completed.status,
+    signal: completed.signal,
+    stdout: completed.stdout ?? "",
+    stderr: completed.stderr ?? "",
+    timedOut: (completed.error as NodeJS.ErrnoException | undefined)?.code === "ETIMEDOUT",
+  };
+}
+
+type DocumentationFinding = {
+  kind: "missing-path" | "stale-reference" | "mcp-documentation";
+  path: string;
+  line?: number;
+  message: string;
+  evidence?: string;
+};
+
+async function auditDocumentation() {
+  const listed = runAllowed("git", ["ls-files", "--cached", "--others", "--exclude-standard"], repoRoot);
+  if (listed.status !== 0) return {valid: false, filesScanned: 0, findings: [{kind: "stale-reference", path: "", message: listed.stderr || "Could not list repository files."}]};
+
+  const markdownPaths = visibleGitLines(listed.stdout)
+    .filter((path) => path.endsWith(".md") && path !== "AGENTS.md" && !path.startsWith(".codex/") && !path.startsWith("secrets/"));
+  const findings: DocumentationFinding[] = [];
+  const staleReferences = [
+    {pattern: /ACL reconciliation|home-acl-reconcile|services\.homeAcl/i, message: "Documentation references removed ACL reconciliation wiring."},
+    {pattern: /scripts\/.*audit|`scripts\/`.*audit/i, message: "Documentation references removed audit tooling."},
+  ];
+
+  for (const path of markdownPaths) {
+    const content = await readSafeFile(path);
+    if (content === null) continue;
+    const lines = content.split("\n");
+    lines.forEach((line, index) => {
+      for (const stale of staleReferences) {
+        if (stale.pattern.test(line)) findings.push({kind: "stale-reference", path, line: index + 1, message: stale.message, evidence: line.trim()});
+      }
+      for (const match of line.matchAll(/`([^`]+)`/g)) {
+        const candidate = match[1].replace(/[),.;:]$/, "");
+        if (!candidate.includes("/") || /\s|[:+*()<>"'=]/.test(candidate) || candidate.includes("://") || candidate.includes("$") || candidate.startsWith("/") || candidate.startsWith("~")) continue;
+        const candidates = [candidate];
+        if (path.startsWith("modules/") && !candidate.startsWith("modules/")) candidates.push(`modules/nixos/${candidate}`);
+        const exists = candidates.some((value) => {
+          try {
+            const relativePath = safeRelativePath(value);
+            lstatSync(resolve(repoRoot, relativePath));
+            return true;
+          } catch {
+            return false;
+          }
+        });
+        if (!exists) findings.push({kind: "missing-path", path, line: index + 1, message: `Documented repository path does not exist: ${candidate}`, evidence: line.trim()});
+      }
+    });
+  }
+
+  const serverSource = await readSafeFile("mcp/src/server.ts") ?? "";
+  const mcpReadme = await readSafeFile("mcp/README.md") ?? "";
+  for (const match of serverSource.matchAll(/server\.tool\("([^"]+)"/g)) {
+    const name = match[1];
+    if (!mcpReadme.includes(`\`${name}\``)) findings.push({kind: "mcp-documentation", path: "mcp/README.md", message: `MCP tool is not documented: ${name}`});
+  }
+
+  return {valid: findings.length === 0, filesScanned: markdownPaths.length, findings};
+}
+
 function operationHash(kind: string, changes: Change[]): string {
   return createHash("sha256").update(JSON.stringify({kind, changes}, null, 2)).digest("hex");
 }
@@ -219,6 +313,95 @@ function visibleGitLines(output: string): string[] {
   });
 }
 
+function workingTreePaths(statusOutput: string): string[] {
+  const paths = new Set<string>();
+  for (const record of statusOutput.split("\0").filter(Boolean)) {
+    if (record.length < 4) continue;
+    paths.add(safeRelativePath(record.slice(3), true));
+  }
+  return [...paths].sort();
+}
+
+async function workingTreeDiff(paths: string[]): Promise<string> {
+  const othersList = runAllowed("git", ["ls-files", "--others", "--exclude-standard", "--", ...paths], repoRoot);
+  const untracked = new Set(othersList.stdout.split("\n").map((line) => line.trim()).filter(Boolean));
+
+  const tracked: string[] = [];
+  for (const path of paths) {
+    if (!untracked.has(path)) tracked.push(path);
+  }
+
+  const diffs: string[] = [];
+  if (tracked.length > 0) {
+    const trackedDiff = runAllowed("git", ["diff", "--no-ext-diff", "--binary", "--full-index", "HEAD", "--", ...tracked], repoRoot);
+    if (trackedDiff.status !== 0) fail(trackedDiff.stderr || "Could not create the working-tree diff.");
+    if (trackedDiff.stdout) diffs.push(trackedDiff.stdout);
+  }
+  for (const path of untracked) {
+    const target = await safePath(path, false, true);
+    const untrackedDiff = runAllowed("git", ["diff", "--no-index", "--binary", "--", "/dev/null", target.absolute], repoRoot);
+    if (untrackedDiff.status !== 0 && untrackedDiff.status !== 1) fail(untrackedDiff.stderr || `Could not diff ${path}.`);
+    if (untrackedDiff.stdout) diffs.push(untrackedDiff.stdout);
+  }
+  return diffs.join("\n");
+}
+
+async function captureWorkingTreeSnapshot(): Promise<WorkingTreeSnapshot> {
+  const status = runAllowed("git", ["status", "--porcelain=v1", "-z", "--no-renames", "--untracked-files=all"], repoRoot);
+  if (status.status !== 0) fail(status.stderr || "Could not inspect the working tree.");
+  const paths = workingTreePaths(status.stdout);
+  const contentHashes = await Promise.all(paths.map(async (path) => {
+    await safePath(path, false, true);
+    return {path, hash: digest(await readSafeFile(path, true))};
+  }));
+  return {paths, diff: await workingTreeDiff(paths), contentHashes};
+}
+
+function workingTreeOperationHash(snapshot: WorkingTreeSnapshot): string {
+  return createHash("sha256").update(JSON.stringify(snapshot, null, 2)).digest("hex");
+}
+
+function workingTreeOperationSummary(operation: WorkingTreeOperation) {
+  return {
+    operationId: operation.id,
+    approvalHash: operation.hash,
+    kind: operation.kind,
+    createdAt: operation.createdAt,
+    paths: operation.snapshot.paths,
+    diff: operation.snapshot.diff,
+  };
+}
+
+async function createWorkingTreeOperation(): Promise<WorkingTreeOperation> {
+  const snapshot = await captureWorkingTreeSnapshot();
+  if (snapshot.paths.length === 0) fail("The working tree is clean; there is nothing to prepare.");
+  const operation: WorkingTreeOperation = {
+    id: randomUUID(),
+    hash: workingTreeOperationHash(snapshot),
+    kind: "working-tree-commit",
+    createdAt: new Date().toISOString(),
+    snapshot,
+  };
+  workingTreeOperations.set(operation.id, operation);
+  return operation;
+}
+
+function getWorkingTreeOperation(id: string, approvalHash: string): WorkingTreeOperation {
+  const operation = workingTreeOperations.get(id);
+  if (!operation || operation.hash !== approvalHash) fail("The working-tree operation ID or approval hash is invalid or stale.");
+  return operation;
+}
+
+async function ensureWorkingTreeOperationCurrent(operation: WorkingTreeOperation) {
+  const current = await captureWorkingTreeSnapshot();
+  if (workingTreeOperationHash(current) !== operation.hash) fail("The working tree changed after preparation; prepare a new review operation.");
+}
+
+function validCommitMessage(message: string) {
+  const [subject, ...trailers] = message.split("\n");
+  return subject.endsWith(".") && trailers.every((line) => /^Co-authored-by:\s+.+\s+<[^<>\s@]+@[^<>\s@]+>$/.test(line));
+}
+
 function createOperation(kind: string, changes: Change[]): Operation {
   if (changes.length === 0) fail("The proposed operation produces no changes.");
   const operation: Operation = {
@@ -247,29 +430,32 @@ function getOperation(id: string, approvalHash: string): Operation {
 
 const server = new McpServer({name: "nix-config-project-mcp", version: "0.1.0"});
 
-server.tool("read_project_overview", "Summarize the repository structure and NixOS entry points.", {}, async () => {
+server.tool("read_project_overview", "List non-sensitive repository files and the primary NixOS entry points without modifying the checkout.", {}, async () => {
   const output = runAllowed("git", ["ls-files", "--cached", "--others", "--exclude-standard"], repoRoot);
   return result({repository: repoRoot, files: visibleGitLines(output.stdout).filter(Boolean).slice(0, 500), flake: "flake.nix", host: "hosts/hiraeth/default.nix"});
 });
 
-server.tool("read_authority_contract", "Explain the repository MCP authority, ACL, Hermes, and protected-path conventions.", {}, async () => {
+server.tool("read_authority_contract", "Explain the MCP repository boundary, approval model, Hermes runtime rules, and protected paths.", {}, async () => {
   return result({repository: repoRoot, ...authorityContract});
 });
 
-server.tool("validate_declarative_contract", "Validate declarative ACL, Hermes, rebuild, and MCP authority conventions from repository source only.", {}, async () => {
+server.tool("validate_declarative_contract", "Validate declarative Hermes/container and MCP authority conventions from repository source only.", {}, async () => {
   const paths = [
-    "modules/nixos/security/home-acl.nix",
     "hosts/hiraeth/default.nix",
-    "modules/nixos/users/feilhann.nix",
+    "modules/nixos/users/yashindo.nix",
     "modules/nixos/hermes.nix",
-    "modules/nixos/scripts.nix",
+    "modules/nixos/graphify.nix",
+    "modules/nixos/hermes-graphify.nix",
+    "modules/nixos/obsidian-hermes-vault.nix",
+    "home/yashindo/apps/hermes-desktop.nix",
+    "flake.nix",
     "mcp/src/server.ts",
   ];
   const entries = await Promise.all(paths.map(async (path) => [path, (await readSafeFile(path)) ?? ""] as const));
   return result({repository: repoRoot, ...validateDeclarativeContract(Object.fromEntries(entries))});
 });
 
-server.tool("read_project_file", "Read one non-sensitive file inside the repository.", {path: z.string()}, async ({path}) => {
+server.tool("read_project_file", "Read one non-sensitive regular file inside the repository.", {path: z.string()}, async ({path}) => {
   const content = await readSafeFile(path);
   if (content === null) fail("The file does not exist.");
   return result({path: safeRelativePath(path), content});
@@ -289,7 +475,75 @@ server.tool("inspect_flake", "Inspect flake outputs using the read-only nix flak
   return result(runAllowed("nix", ["flake", "show", "--json", "."], repoRoot, 120_000));
 });
 
-server.tool("prepare_patch", "Prepare exact file contents in an isolated workspace without modifying the repository.", {changes: z.array(changeSchema).min(1)}, async ({changes}) => {
+server.tool("audit_documentation", "Audit tracked Markdown documentation for stale legacy claims, missing repository paths, and undocumented MCP tools without modifying the checkout.", {}, async () => {
+  return result(await auditDocumentation());
+});
+
+server.tool("validate_mcp", "Run the fixed repository MCP test suite without accepting command arguments or modifying the checkout.", {}, async () => {
+  return result(runFixed("bun", ["test", "mcp"], repoRoot, 300_000));
+});
+
+server.tool("validate_repository", "Run the bounded documentation audit, MCP test suite, and read-only Nix flake check as separate results.", {}, async () => {
+  return result({
+    documentation: await auditDocumentation(),
+    mcp: runFixed("bun", ["test", "mcp"], repoRoot, 300_000),
+    flake: runAllowed("nix", ["flake", "check", "--no-build", "--show-trace"], repoRoot, 300_000),
+  });
+});
+
+server.tool("prepare_working_tree_commit", "Prepare the complete visible dirty working tree for review; returns a diff and approval hash without modifying the checkout.", {}, async () => {
+  return result(workingTreeOperationSummary(await createWorkingTreeOperation()));
+});
+
+server.tool("git_commit_working_tree", "Commit the reviewed working tree one file per commit after rechecking the exact approved snapshot. Each file requires its own message; all reviewed paths must be represented, and no other path may be committed.", {
+  operationId: z.string(),
+  approvalHash: z.string(),
+  commits: z.array(z.object({path: z.string().min(1), message: z.string().min(1).max(4096)})).min(1),
+}, async ({operationId, approvalHash, commits}) => {
+  const operation = getWorkingTreeOperation(operationId, approvalHash);
+  for (const entry of commits) {
+    if (!validCommitMessage(entry.message)) fail("Commit messages must have a sentence-style subject ending with a period; optional lines may be valid Co-authored-by trailers.");
+  }
+  const requestedPaths = commits.map((entry) => safeRelativePath(entry.path, true));
+  const reviewed = new Set(operation.snapshot.paths);
+  if (requestedPaths.length !== reviewed.size) fail(`Provide exactly one commit per reviewed file (${reviewed.size} expected, ${requestedPaths.length} given).`);
+  for (const path of requestedPaths) {
+    if (!reviewed.has(path)) fail(`The path was not part of the reviewed snapshot: ${path}`);
+  }
+  if (new Set(requestedPaths).size !== requestedPaths.length) fail("Each reviewed file may appear only once.");
+
+  const beforeStatus = runAllowed("git", ["status", "--short", "--untracked-files=all"], repoRoot);
+  if (beforeStatus.status !== 0) fail(beforeStatus.stderr || "Could not inspect the working tree before committing.");
+
+  const results = [];
+  for (const entry of commits) {
+    const path = safeRelativePath(entry.path, true);
+    const current = await readSafeFile(path, true);
+    const recorded = operation.snapshot.contentHashes.find((record) => record.path === path);
+    if (!recorded) fail(`The file was not part of the reviewed snapshot: ${path}`);
+    if (digest(current) !== recorded.hash) fail(`The file changed after preparation: ${path}`);
+    if (current !== null) {
+      // Present (modified, untracked, or mode change): stage the exact path.
+      // Already-staged deletions are skipped because the file is gone from disk.
+      const staged = runAllowed("git", ["add", "--", path], repoRoot);
+      if (staged.status !== 0) fail(staged.stderr || `Could not stage the reviewed file: ${path}`);
+    }
+    const commit = runAllowed("git", ["commit", "-m", entry.message, "--", path], repoRoot, 120_000);
+    results.push({path, ...commit});
+  }
+
+  const afterStatus = runAllowed("git", ["status", "--short", "--untracked-files=all"], repoRoot);
+  return result({
+    operationId,
+    approvalHash,
+    fileCount: requestedPaths.length,
+    beforeStatus: {...beforeStatus, stdout: visibleGitLines(beforeStatus.stdout).join("\n")},
+    commits: results,
+    afterStatus: {...afterStatus, stdout: visibleGitLines(afterStatus.stdout).join("\n")},
+  });
+});
+
+server.tool("prepare_patch", "Prepare exact file contents against the current checkout without modifying it; the returned operation requires approval before application.", {changes: z.array(changeSchema).min(1)}, async ({changes}) => {
   const normalized = [] as string[];
   const seen = new Set<string>();
   for (const change of changes) {
@@ -318,7 +572,7 @@ server.tool("prepare_patch", "Prepare exact file contents in an isolated workspa
   return result({...operationSummary(operation), diff: operation.changes.map(unifiedDiff).join("\n")});
 });
 
-server.tool("prepare_format", "Run the flake formatter in an isolated workspace and return the resulting patch.", {paths: z.array(z.string()).default([])}, async ({paths}) => {
+server.tool("prepare_format", "Run the flake formatter in a temporary isolated workspace and return a reviewable patch without modifying the checkout.", {paths: z.array(z.string()).default([])}, async ({paths}) => {
   const workspace = await createWorkspace();
   try {
     const formatted = runAllowed("nix", ["fmt", "."], workspace, 120_000);
@@ -334,7 +588,7 @@ server.tool("prepare_format", "Run the flake formatter in an isolated workspace 
   }
 });
 
-server.tool("prepare_flake_lock_update", "Update flake.lock in an isolated workspace and return only that file's patch.", {}, async () => {
+server.tool("prepare_flake_lock_update", "Update flake.lock in a temporary isolated workspace and return only that file's reviewable patch.", {}, async () => {
   const workspace = await createWorkspace();
   try {
     const updated = runAllowed("nix", ["flake", "update", "--flake", workspace], workspace, 300_000);
@@ -348,7 +602,7 @@ server.tool("prepare_flake_lock_update", "Update flake.lock in an isolated works
   }
 });
 
-server.tool("validate_flake", "Run the repository's read-only flake check, optionally against a prepared operation.", {operationId: z.string().optional(), approvalHash: z.string().optional()}, async ({operationId, approvalHash}) => {
+server.tool("validate_flake", "Run the read-only flake check on the checkout or on a prepared operation without applying it.", {operationId: z.string().optional(), approvalHash: z.string().optional()}, async ({operationId, approvalHash}) => {
   if (!operationId && approvalHash) fail("An approval hash requires an operation ID.");
   if (!operationId) return result(runAllowed("nix", ["flake", "check", "--no-build", "--show-trace"], repoRoot, 300_000));
   if (!approvalHash) fail("An approval hash is required to validate a prepared operation.");
@@ -383,13 +637,22 @@ server.tool("apply_approved_patch", "Apply an exact prepared operation after its
   return result({applied: true, ...operationSummary(operation)});
 });
 
-server.tool("prepare_commits", "Suggest one sentence-style commit message for each file changed by a prepared operation.", {operationId: z.string(), approvalHash: z.string()}, async ({operationId, approvalHash}) => {
+server.tool("prepare_commits", "After a prepared operation has been applied, suggest a one-sentence commit subject per changed file (verb + path, e.g. 'Add compatibility for non-agent editing.'); the reviewer edits it to state what the change does before committing.", {operationId: z.string(), approvalHash: z.string()}, async ({operationId, approvalHash}) => {
   const operation = getOperation(operationId, approvalHash);
   await ensureOperationCurrent({...operation, changes: operation.changes.map((change) => ({...change, before: change.after, beforeHash: change.afterHash}))});
-  return result({operationId, approvalHash, commits: operation.changes.map((change) => ({path: change.path, message: `Update ${basename(change.path)}.`}))});
+  const commits = operation.changes.map((change) => {
+    const {path} = change;
+    const inHead = runAllowed("git", ["cat-file", "-e", `HEAD:${path}`], repoRoot).status === 0;
+    let subject: string;
+    if (!inHead) subject = `Add ${path}.`;
+    else if (change.after === null) subject = `Remove ${path}.`;
+    else subject = `Update ${path}.`;
+    return {path, message: subject};
+  });
+  return result({operationId, approvalHash, commits});
 });
 
-server.tool("git_commit_files", "Create explicitly approved one-file commits for a prepared operation.", {operationId: z.string(), approvalHash: z.string(), commits: z.array(z.object({path: z.string(), message: z.string().min(1).max(72)})).min(1)}, async ({operationId, approvalHash, commits}) => {
+server.tool("git_commit_files", "After review, create explicitly approved one-file commits for an applied prepared operation; rejects unrelated dirty paths.", {operationId: z.string(), approvalHash: z.string(), commits: z.array(z.object({path: z.string(), message: z.string().min(1).max(4096)})).min(1)}, async ({operationId, approvalHash, commits}) => {
   const operation = getOperation(operationId, approvalHash);
   await ensureOperationCurrent({...operation, changes: operation.changes.map((change) => ({...change, before: change.after, beforeHash: change.afterHash}))});
   const status = runAllowed("git", ["status", "--porcelain=v1", "--untracked-files=all"], repoRoot);
@@ -404,7 +667,7 @@ server.tool("git_commit_files", "Create explicitly approved one-file commits for
   const results = [];
   for (const commit of commits) {
     const path = safeRelativePath(commit.path);
-    if (!commit.message.endsWith(".") || /\n|Co-authored-by:/i.test(commit.message)) fail("Commit messages must be one sentence, end with a period, and contain no co-author trailer.");
+    if (!validCommitMessage(commit.message)) fail("Commit messages must have a sentence-style subject ending with a period; optional lines may be valid Co-authored-by trailers.");
     const committed = runAllowed("git", ["add", "--", path], repoRoot);
     if (committed.status !== 0) return result(committed);
     const commitResult = runAllowed("git", ["commit", "--only", "-m", commit.message, "--", path], repoRoot, 120_000);
