@@ -6,9 +6,12 @@
   environment.systemPackages = with pkgs; [
     alejandra
     docker-compose
+    ffmpeg-full
     easyeffects
     gamemode
     git
+    gnused
+    nix
     ripgrep
     nil
     nixfmt-rfc-style
