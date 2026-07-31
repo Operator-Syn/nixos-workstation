@@ -33,7 +33,7 @@ hosts/
 | Hardware | generated hardware scan, filesystems, CPU microcode |
 | Graphics | GPU bus IDs, NVIDIA mode, PRIME/offload settings |
 | Imports | selecting reusable modules from `modules/nixos/` |
-| Services | Hermes, Graphify, Obsidian vault, NetBird, ACL reconciliation |
+| Services | Hermes, Graphify, Obsidian vault, NetBird |
 
 ## Enabled Development Support
 
@@ -85,9 +85,9 @@ The canonical activation command is the Fish alias `rb`:
 rb
 ```
 
-The system-wide `rebuild` helper performs the hardware refresh, NixOS activation, and post-activation ACL reconciliation. Use `rebuild` directly when Fish aliases are unavailable. Use `update-system` to update flake inputs before running the same rebuild workflow, or `uh`/`update-hardware` when only the hardware scan is needed.
+The system-wide `rebuild` helper performs the hardware refresh and NixOS activation. Use `rebuild` directly when Fish aliases are unavailable. Use `update-system` to update flake inputs before running the same rebuild workflow, or `uh`/`update-hardware` when only the hardware scan is needed.
 
-For a low-level activation that intentionally bypasses the custom hardware refresh and ACL reconciliation:
+For a low-level activation that intentionally bypasses the custom hardware refresh:
 
 ```sh
 sudo nixos-rebuild switch --flake ~/nix-config#nixos --cores "$(nproc)" --show-trace
@@ -97,18 +97,13 @@ After activation, verify the live generation separately:
 
 ```sh
 systemctl --failed
-systemctl status home-acl-reconcile.service --no-pager
+systemctl status hermes-desktop-backend.service --no-pager
 ```
 
-Hiraeth's ACL direction is intentionally asymmetric. The `feilhann-home-admin`
-group contains only `yashindo` and grants Yashindo full access to Feilhann's
-home. Explicit administrator ACLs also cover Feilhann-created content in
-`/home/yashindo/Git`, `/home/yashindo/nix-config`, and the full shared vault at
-`/srv/obsidian/hermes-vault`. The reverse permissions remain limited to
-Feilhann's read-only audit view of Yashindo's home, excluding `Git`, plus the
-separate Feilhann Git write policy. The canonical ACL reconciler applies these
-declarations after tmpfiles resetup; scoped Git and nix-config policies also
-have path-triggered self-heal units.
+Hermes runs as Yashindo inside a declarative Docker OCI container. The
+container uses Yashindo's numeric UID/GID, mounts `/home/yashindo` at the same
+path, and reaches the loopback desktop backend on port `9119`. Graphify and
+the read-only notes MCP remain host services backed by the shared vault.
 
 ## Hiraeth ASUS and NVIDIA Compatibility
 
