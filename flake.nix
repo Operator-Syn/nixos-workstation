@@ -74,7 +74,6 @@
           # when Home Manager needs to migrate paths into managed symlinks.
           home-manager.backupFileExtension = "hm-backup";
           home-manager.users.${username} = import ./home/yashindo;
-          home-manager.users.feilhann = import ./home/feilhann;
         }
       ];
     };
