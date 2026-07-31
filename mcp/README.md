@@ -49,7 +49,7 @@ configuration.
 | `apply_approved_patch` | Apply an exact prepared operation after hash approval | Approval required |
 | `prepare_commits` | Prepare commit messages for an already-applied operation | Approval workflow |
 | `git_commit_files` | Create approved one-file commits and reject unrelated dirty paths | Approval required |
-| `git_commit_working_tree` | Commit the exact reviewed working-tree snapshot as one commit | Approval required |
+| `git_commit_working_tree` | Commit the exact reviewed working-tree snapshot, one file per commit | Approval required |
 
 Prepare tools return an operation ID, approval hash, file hashes, and a diff.
 `prepare_patch` compares against the current checkout directly; formatting and
@@ -59,18 +59,21 @@ exact operation ID and approval hash, and rechecks targeted files before writing
 The commit tools operate after a prepared operation has been applied, except for
 `prepare_working_tree_commit` and `git_commit_working_tree`. The latter pair is
 specifically for externally-created dirty changes: preparation returns the full
-visible diff and a snapshot hash, and commit rechecks that exact snapshot before
-staging and creating one commit. Protected paths are rejected rather than
-silently omitted. The existing commit tools require one commit per file and
-reject unrelated dirty paths. No tool pushes, merges, deploys, or activates
-NixOS.
+visible diff and a snapshot hash, and commit rechecks that exact snapshot, then
+creates one commit per reviewed file from the approved `commits` list (each file
+with its own message). All reviewed paths must be represented, and no other path
+may be committed. Protected paths are rejected rather than silently omitted. The
+existing commit tools require one commit per file and reject unrelated dirty
+paths. No tool pushes, merges, deploys, or activates NixOS.
 
 ## Authority model
 
 - Read tools inspect the repository, Nix flake, and Git state.
 - Prepare tools do not modify the real checkout.
 - Apply tools require the returned operation ID and approval hash.
-- Git commits require a separate approved request, one file per commit for prepared operations, or an exact reviewed working-tree snapshot for the dedicated whole-tree path; sentence-style subjects ending in a period, with optional valid co-author trailers.
+- Git commits require a separate approved request, one file per commit (whether
+  via the prepared operations or the dedicated reviewed working-tree path);
+  sentence-style subjects ending in a period, with optional valid co-author trailers.
 - System activation, reboot, sudo, and live systemd/container verification are
   user-owned operations outside the MCP.
 
