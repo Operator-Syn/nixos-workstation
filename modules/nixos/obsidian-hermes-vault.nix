@@ -9,7 +9,6 @@ in {
 
   config = lib.mkIf cfg.enable {
     users.groups."obsidian-hermes" = {};
-    users.users.feilhann.extraGroups = ["obsidian-hermes"];
     users.users.yashindo.extraGroups = ["obsidian-hermes"];
 
     systemd.tmpfiles.rules = [
