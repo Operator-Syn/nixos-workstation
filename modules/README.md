@@ -16,8 +16,8 @@ modules/
     |-- development/      Distrobox and system-level development support
     |-- hardware/         reusable hardware-related modules
     |-- users/            system user declarations
-    |-- security/         declarative home ACL reconciliation
-    |-- hermes.nix        Hermes backend, audit, and managed CLI
+    |-- security/         reusable system security modules
+    |-- hermes.nix        Hermes OCI backend and runtime CLI
     |-- graphify.nix      Graphify services and indexing
     |-- hermes-graphify.nix Hermes-to-Graphify integration
     |-- obsidian-hermes-vault.nix shared Obsidian vault
@@ -41,8 +41,7 @@ modules/
 | `development/` | Distrobox setup, declared mutable boxes, optional Python support, containers |
 | `hardware/` | Bluetooth and reusable ASUS hardware support |
 | `users/` | system users, shells, groups |
-| `security/home-acl.nix` | declarative ACL policies, one locked reconciler, and its timer |
-| `hermes.nix` | Hermes backend, audit reporting, managed CLI, and runtime paths |
+| `hermes.nix` | Hermes OCI backend image, runtime CLI, GitHub wrappers, and runtime paths |
 | `graphify.nix` | Graphify indexing service and watcher |
 | `hermes-graphify.nix` | Hermes Graphify integration services |
 | `obsidian-hermes-vault.nix` | shared Obsidian vault wiring |
@@ -114,9 +113,3 @@ KDE Plasma's `power-profiles-daemon` owns the generic platform profile. ASUS
 controls remain responsible for firmware-specific features such as charge
 thresholds, keyboard lighting, fan curves, and Armoury features. Do not add
 Windows G-Helper, Wine, or a second GPU-switching daemon to this stack.
-
-`security/home-acl.nix` supports administrator principals for inherited
-read-write access and optional absolute roots for shared non-home trees. The
-Hiraeth host uses those features for Feilhann's home, Git, nix-config, and the
-shared Obsidian vault. Unix ownership is preserved; ACL reconciliation supplies
-the shared administrative access.
