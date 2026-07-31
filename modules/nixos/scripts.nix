@@ -105,15 +105,6 @@
     echo "Starting NixOS Rebuild..."
     "$sudo" -n nixos-rebuild switch --flake "$HOME/nix-config/#nixos" --cores "$(nproc)" --show-trace || cleanup
 
-    echo "Starting home ACL reconciliation..."
-    if ! "$sudo" -n systemctl start home-acl-reconcile.service; then
-      stop_sudo_keepalive
-      "$sudo" -k
-      echo -e "\n[!] NixOS rebuild activated, but Hermes ACL repair failed. Credentials cleared."
-      exit 1
-    fi
-
-    echo "Home ACL reconciliation complete."
     stop_sudo_keepalive
     trap - EXIT
   '';
