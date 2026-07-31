@@ -15,7 +15,7 @@ This repo is meant to be readable first: each folder owns one layer of the syste
 | `home/` | User-level Home Manager configuration | `home/yashindo/default.nix` |
 | `devshells/` | Reusable project environments | `devshells/default.nix` |
 | `mcp/` | Repository-scoped Project MCP and contract tests | `mcp/src/server.ts` |
-| `scripts/` | Graphify, audit, and repository helper scripts | `scripts/rebuild_graphify.sh` |
+| `scripts/` | Graphify and repository helper scripts | `scripts/rebuild_graphify.sh` |
 | `tests/` | Python helper and integration tests | `tests/` |
 | `Pipfile` / `Pipfile.lock` | Locked Graphify and Python test environment | `pipenv` |
 | `package.json` / `bun.lock` | Project MCP runtime and Bun tests | `bun` |
@@ -30,7 +30,7 @@ This repo is meant to be readable first: each folder owns one layer of the syste
 |-- hosts/           concrete machine configurations
 |-- modules/         reusable NixOS system modules
 |-- mcp/             repository-scoped Project MCP
-|-- scripts/         audit and Graphify helpers
+|-- scripts/         Graphify and repository helpers
 |-- tests/           Python test suite
 |-- flake.nix        main flake entry point
 `-- flake.lock       pinned input revisions
@@ -58,7 +58,7 @@ This repo is meant to be readable first: each folder owns one layer of the syste
 | Create declared Debian Distrobox | `assemble-debian-dev` |
 | Enter Debian Distrobox | `distrobox enter debian-dev` |
 
-`rb` is the canonical Fish alias for the system-wide `rebuild` helper. It refreshes the hardware configuration, activates the NixOS generation, and starts the unified ACL reconciliation service. Use `rebuild` directly from another shell, `update-system` to update flake inputs before rebuilding, or `uh`/`update-hardware` when only the hardware scan is needed. The direct `nixos-rebuild` command above is a low-level fallback that bypasses the custom hardware refresh and post-activation ACL reconciliation. Activation is still user-owned and should be followed by live checks such as `systemctl --failed`, `systemctl status home-acl-reconcile.service --no-pager`, and targeted `getfacl` checks.
+`rb` is the canonical Fish alias for the system-wide `rebuild` helper. It refreshes the hardware configuration and activates the NixOS generation. Use `rebuild` directly from another shell, `update-system` to update flake inputs before rebuilding, or `uh`/`update-hardware` when only the hardware scan is needed. The direct `nixos-rebuild` command above is a low-level fallback that bypasses the custom hardware refresh. Activation is still user-owned and should be followed by live checks such as `systemctl --failed`, `systemctl status hermes-desktop-backend.service --no-pager`, and `docker ps`.
 
 ## How The Layers Fit
 
@@ -81,17 +81,38 @@ flake.nix
 
 This repository provides a local stdio MCP server for repository-aware NixOS work. It can inspect the flake, prepare isolated patches, apply explicitly approved file changes, validate the flake, and create separately approved one-file commits. It cannot run privileged system activation or arbitrary shell commands. See [`mcp/README.md`](mcp/README.md) for the authority model and setup.
 
-The Project MCP also exposes read-only authority and declarative-contract checks. They enforce the distinction between repository changes prepared by an agent and live NixOS activation performed by the user. In particular, ACLs are declared in Nix, write access uses dedicated groups and administrator ACLs, read-only audit access stays separate, and one locked `home-acl-reconcile` service remains the canonical reconciliation path. Path-triggered watcher services provide faster self-healing for scoped project trees. Built configuration and Graphify output are evidence, not substitutes for live verification.
+The Project MCP also exposes read-only authority and declarative-contract checks. They enforce the distinction between repository changes prepared by an agent and live NixOS activation performed by the user. Built configuration and Graphify output are evidence, not substitutes for live verification.
 
-The read-only `read_authority_contract` tool describes this boundary, while `validate_declarative_contract` checks the repository source for the unified ACL service and timer, global locking, policy ordering, Git exclusions, Hermes managed mode, backend group membership, and safe MCP command boundaries. These checks do not inspect live `/run`, user homes, credentials, or the protected vault.
+The read-only `read_authority_contract` tool describes this boundary, while `validate_declarative_contract` checks the repository source for the declarative Hermes installation/container boundary, imperative user settings, and safe MCP command boundaries. These checks do not inspect live `/run`, user homes, credentials, or the protected vault.
 
 The MCP may inspect the repository, prepare patches, apply explicitly approved patches, validate the flake, and create explicitly approved one-file commits. Users retain ownership of `sudo`, `rb`/NixOS activation, reboot, systemd checks, and live permission verification.
 
-## Declarative ACL And Hermes Boundaries
+## Declarative Hermes Installation Boundary
 
-Home and project permissions are reconciled declaratively by `home-acl-reconcile.service` and its single persistent timer. The service takes a global lock and applies policies in a fixed order. `feilhann-home-admin` gives only `yashindo` full read-write access to the entire `/home/feilhann` tree, including hidden state and future files. Explicit administrator ACLs also preserve Yashindo's operational access to Feilhann-created content under `/home/yashindo/Git` and `/home/yashindo/nix-config`, plus the full `/srv/obsidian/hermes-vault` tree. The existing reverse policies remain separate: Feilhann receives read-only audit access to Yashindo's home with `Git` excluded, and retains dedicated read-write access to Yashindo's `Git` tree. `rb` is the repository rebuild workflow, but a successful build or activation does not replace live service and permission checks.
+Hermes is installed and run declaratively, while its provider, model, tools, approvals, MCP servers, and other customization remain imperative in `/home/yashindo/.hermes`. The backend runs in a Docker OCI container under Yashindo's UID/GID with the full home mounted at `/home/yashindo`; its desktop API remains bound to localhost on port `9119`. Graphify and the notes MCP remain separate host services for the shared vault and can be configured through Hermes at runtime.
 
-Hermes uses `/etc/hermes` for managed configuration. Yashindo's operating-system ACL access to Feilhann's private Hermes state and the shared vault does not expand the Project MCP authority: MCP still cannot read or mutate `/home/feilhann/.hermes/`, credentials, or vault plans. The working plans under `/home/feilhann/.hermes/plans/` and the protected shared-vault plan copies under `/srv/obsidian/hermes-vault/40 Plans/` are separate authority domains and are not automatically synchronized or made writable by MCP.
+When Graphify is enabled, NixOS runs the Graphify MCP at `http://127.0.0.1:9292/mcp` and the read-only notes MCP at `http://127.0.0.1:9293/mcp`. Add or remove those connections from Hermes Desktop or with `hermes mcp add`; NixOS owns service availability, while Hermes owns connection selection.
+
+Configure those settings from Hermes Desktop after activation: use Settings → Providers/Accounts for authentication, Settings → Model for the provider and model, Settings → Tools & Keys or Skills → Tools for toolsets, Settings → MCP for MCP servers, and Settings → Safety/Workspace for runtime behavior. These changes are written to the user-owned Hermes state and are not overwritten by Nix activation.
+
+### GitHub CLI accounts in Hermes
+
+The Hermes backend has two explicit GitHub CLI entry points:
+
+```sh
+gh-feilhann <command>
+gh-operator-syn <command>
+```
+
+Use the wrapper for the account that should perform each operation. The wrappers inject SOPS-managed tokens through read-only container mounts and use isolated Hermes-owned `gh` configuration directories. Do not use the default `gh` command inside Hermes, switch accounts globally, read `/run/secrets` or `/run/hermes/gh`, or print token values. Verify identities without exposing credentials:
+
+```sh
+docker exec hermes-backend gh-feilhann api user --jq .login
+docker exec hermes-backend gh-operator-syn api user --jq .login
+```
+
+The host shell may continue using `gh auth status` and `gh auth switch` independently. Hermes cannot use `sudo`, NixOS activation, or the host keyring for GitHub access.
+
 
 ## Project Graphify
 
