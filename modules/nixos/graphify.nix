@@ -9,6 +9,7 @@
   statePath = "/var/lib/graphify/hermes-vault";
   derivedPath = "/var/lib/graphify/hermes-derived-vault";
   graphPath = "${statePath}/graphify-out/graph.json";
+  notesHelper = pkgs.writeText "hermes-graphify-notes-mcp.py" (builtins.readFile ../../scripts/hermes_graphify_mcp.py);
   vaultHelper = pkgs.writeText "graphify-vault.py" (builtins.readFile ../../scripts/graphify_vault.py);
   graphifyBuild = pkgs.writeShellScript "graphify-build-hermes-vault" ''
     set -euo pipefail
@@ -130,6 +131,11 @@ in {
       default = 9292;
       description = "Loopback port for the Graphify MCP server.";
     };
+    notesPort = lib.mkOption {
+      type = lib.types.port;
+      default = 9293;
+      description = "Loopback port for the Hermes notes MCP server.";
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -167,7 +173,7 @@ in {
       wants = ["network-online.target"];
       serviceConfig = {
         Type = "oneshot";
-        User = "feilhann";
+        User = "yashindo";
         Group = "obsidian-hermes";
         ExecStart = vaultMarkdownModeFixup;
         ReadWritePaths = [vaultPath];
@@ -223,6 +229,26 @@ in {
         Restart = "on-failure";
         RestartSec = 5;
         ReadOnlyPaths = [statePath];
+        ProtectSystem = "strict";
+        ProtectHome = "read-only";
+        PrivateTmp = true;
+        NoNewPrivileges = true;
+      };
+    };
+
+    systemd.services.graphify-notes-mcp = {
+      description = "Read-only notes MCP server for the Hermes Obsidian vault";
+      wantedBy = ["multi-user.target"];
+      after = ["hermes-vault-markdown-mode-fixup.service"];
+      wants = ["hermes-vault-markdown-mode-fixup.service"];
+      serviceConfig = {
+        User = "yashindo";
+        Group = "obsidian-hermes";
+        WorkingDirectory = "/home/yashindo/nix-config";
+        ExecStart = "${pkgs.pipenv}/bin/pipenv run python ${notesHelper} --vault ${vaultPath} --host 127.0.0.1 --port ${toString cfg.notesPort}";
+        Restart = "on-failure";
+        RestartSec = 5;
+        ReadOnlyPaths = [vaultPath];
         ProtectSystem = "strict";
         ProtectHome = "read-only";
         PrivateTmp = true;
