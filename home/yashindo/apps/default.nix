@@ -15,6 +15,7 @@
     ./gh.nix
     ./goose.nix
     ./hermes-desktop.nix
+    ./hermes-terminal.nix
     ./latex.nix
     ./libreoffice.nix
     ./obs-studio.nix
@@ -30,6 +31,7 @@
     ./winboat.nix
     ./youtube-dl.nix
     ./easyeffects-module.nix
+    ./blender.nix
   ];
 
   modules = {
@@ -63,5 +65,6 @@
     winboat.enable = false;
     youtube-dl.enable = true;
     easyeffects.enable = true;
+    blender.enable = true;
   };
 }
