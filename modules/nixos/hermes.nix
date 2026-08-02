@@ -117,14 +117,37 @@
   hermesRuntimeDirs = pkgs.runCommand "hermes-backend-runtime-dirs" {} ''
     mkdir -p "$out/run/hermes/gh"
   '';
+  hermesContainerNss = pkgs.runCommand "hermes-backend-nss" {} ''
+    mkdir -p "$out/etc" "$out/var/empty"
+    cat > "$out/etc/passwd" <<EOF
+root:x:0:0:root:/root:/bin/sh
+yashindo:x:${toString config.users.users.${username}.uid}:${toString config.users.groups.users.gid}:Yashindo:${homeDirectory}:/bin/bash
+nobody:x:65534:65534:nobody:/var/empty:/bin/sh
+EOF
+    cat > "$out/etc/group" <<EOF
+root:x:0:
+users:x:${toString config.users.groups.users.gid}:
+nobody:x:65534:
+EOF
+    cat > "$out/etc/nsswitch.conf" <<EOF
+passwd: files
+group: files
+shadow: files
+hosts: files dns
+EOF
+  '';
   hermesBackendImage = pkgs.dockerTools.buildLayeredImage {
     name = "hermes-backend";
     tag = "latest";
     contents = [
       hermesRuntimeDirs
+      hermesContainerNss
       hermesWeb
       agentBrowser
       pythonWithDdgs
+      pkgs.python3
+      pkgs.pipenv
+      pkgs.openssh
       pkgs.bun
       pkgs.bash
       pkgs.cacert
