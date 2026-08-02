@@ -61,6 +61,9 @@ in {
     nerd-fonts.fira-code
     nerd-fonts.fira-mono
     openmpi
+    (python3.withPackages (pythonPackages: [
+      pythonPackages.pytest
+    ]))
     # pipenv
     claude-code
     codex-bin
