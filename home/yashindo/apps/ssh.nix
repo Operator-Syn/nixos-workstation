@@ -1,6 +1,7 @@
 {
   lib,
   config,
+  pkgs,
   ...
 }: let
   sshSecretFile = ../../../secrets/ssh.yaml;
@@ -64,6 +65,17 @@ in {
           };
         };
       };
+
+      home.activation.sshLocalhostKnownHost = lib.hm.dag.entryAfter ["writeBoundary"] ''
+        known_hosts="${config.home.homeDirectory}/.ssh/known_hosts"
+        host_key='localhost,127.0.0.1 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBXNhSyvQhZred39PFvgvl57JSiFUfus+DJ6/cAWjNEE'
+        ${pkgs.coreutils}/bin/mkdir -p "${config.home.homeDirectory}/.ssh"
+        ${pkgs.coreutils}/bin/touch "$known_hosts"
+        ${pkgs.coreutils}/bin/chmod 600 "$known_hosts"
+        if ! ${pkgs.gnugrep}/bin/grep -Fqx "$host_key" "$known_hosts"; then
+          ${pkgs.coreutils}/bin/printf '%s\\n' "$host_key" >> "$known_hosts"
+        fi
+      '';
     }
 
     (lib.mkIf hasSshSecretFile {
