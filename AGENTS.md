@@ -17,3 +17,11 @@ Nix-config rules:
 - Use the project Nix-config MCP for patches, flake validation, and one-file commits; Graphify must not be used for mutations.
 - Never index or disclose `secrets/`, `.sops.yaml`, `.codex/`, or other paths excluded by `.graphifyignore`.
 - Run Graphify through Pipenv so the project lockfile, not a global Python installation, controls its version.
+
+Documentation rules:
+- Treat live Nix source, flake outputs, package scripts, and the Project MCP implementation as authoritative over README and guide text.
+- When a change adds, removes, renames, or changes the behavior of a module, helper, service, dev shell, MCP tool, or protected boundary, update the nearest relevant Markdown documentation in the same change.
+- Before a documentation maintenance change, run the repository documentation audit and inspect the affected source files; do not rely on filenames or old documentation alone.
+- Keep operational claims specific about whether an action is read-only, preparatory, approval-gated, user-owned, or live-system verification.
+- Do not document secrets, private keys, credential values, or protected vault contents. Refer to their declared paths and authority boundaries only.
+- After documentation changes, rerun the documentation audit and the relevant repository checks. A documentation audit passing does not replace flake or test verification when source files were also changed.
