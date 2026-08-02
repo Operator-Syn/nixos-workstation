@@ -14,10 +14,10 @@ modules/
     |-- core/             locale, Nix settings, security, zram
     |-- desktop/          Plasma, audio, printing, display manager
     |-- development/      Distrobox and system-level development support
-    |-- hardware/         reusable hardware-related modules
-    |-- users/            system user declarations
-    |-- security/         reusable system security modules
+    |-- hardware/         Bluetooth and reusable hardware-related modules
+    |-- users/             system user declarations
     |-- hermes.nix        Hermes OCI backend and runtime CLI
+    |-- hermes-ssh.nix    read-only SSH key mount for the Hermes backend
     |-- graphify.nix      Graphify services and indexing
     |-- hermes-graphify.nix Hermes-to-Graphify integration
     |-- obsidian-hermes-vault.nix shared Obsidian vault
@@ -25,6 +25,7 @@ modules/
     |-- ollama.nix        optional local Ollama service
     |-- kvm-manager.nix   KVM/libvirt and virt-manager
     |-- networking.nix    NetworkManager
+    |-- openssh.nix       hardened OpenSSH server
     |-- packages.nix      system package list
     |-- scripts.nix       helper commands
     |-- steam.nix         Steam, GameMode, launchers, and Proton tools
@@ -42,11 +43,13 @@ modules/
 | `hardware/` | Bluetooth and reusable ASUS hardware support |
 | `users/` | system users, shells, groups |
 | `hermes.nix` | Hermes OCI backend image, runtime CLI, GitHub wrappers, and runtime paths |
+| `hermes-ssh.nix` | mounts the SOPS-provisioned SSH private key into the Hermes container read-only |
 | `graphify.nix` | Graphify indexing service and watcher |
 | `hermes-graphify.nix` | Hermes Graphify integration services |
 | `obsidian-hermes-vault.nix` | shared Obsidian vault wiring |
 | `netbird.nix` | NetBird VPN client |
 | `ollama.nix` | optional local Ollama service; currently not enabled by Hiraeth |
+| `openssh.nix` | OpenSSH server with password and root login disabled |
 | `packages.nix` | system-wide packages |
 | `scripts.nix` | `rebuild`, `update-system`, `update-hardware`, `nvrun`, `getGPU` |
 | `steam.nix` and `steam/` | Steam, GameMode, gamescope, launchers, and Protontricks support |
