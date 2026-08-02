@@ -49,7 +49,7 @@ configuration.
 | `apply_approved_patch` | Apply an exact prepared operation after hash approval | Approval required |
 | `prepare_commits` | Prepare commit messages for an already-applied operation | Approval workflow |
 | `git_commit_files` | Create approved one-file commits and reject unrelated dirty paths | Approval required |
-| `git_commit_working_tree` | Commit the exact reviewed working-tree snapshot, one file per commit | Approval required |
+| `git_commit_working_tree` | Commit the exact reviewed working-tree snapshot, one commit per file | Approval required |
 
 Prepare tools return an operation ID, approval hash, file hashes, and a diff.
 `prepare_patch` compares against the current checkout directly; formatting and
@@ -71,7 +71,7 @@ paths. No tool pushes, merges, deploys, or activates NixOS.
 - Read tools inspect the repository, Nix flake, and Git state.
 - Prepare tools do not modify the real checkout.
 - Apply tools require the returned operation ID and approval hash.
-- Git commits require a separate approved request, one file per commit (whether
+- Git commits require a separate approved request, one commit per file (whether
   via the prepared operations or the dedicated reviewed working-tree path);
   sentence-style subjects ending in a period, with optional valid co-author trailers.
 - System activation, reboot, sudo, and live systemd/container verification are
@@ -125,11 +125,18 @@ Run the MCP tests with:
 bun run mcp:test
 ```
 
-Run the aggregate repository verification through the MCP tool or directly with
-the repository-native commands:
+Run the repository's fixed validation checks through the MCP tool or with the
+repository-native commands:
 
 ```sh
 nix flake check --no-build --show-trace
 bun test mcp
+pipenv run python -m unittest discover -s tests
+```
+
+Regenerate Graphify separately when source or vault relationships need to be
+refreshed; this is maintenance, not a substitute for validation:
+
+```sh
 pipenv run graphify update .
 ```
