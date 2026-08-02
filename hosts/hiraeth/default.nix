@@ -24,9 +24,11 @@
     ../../modules/nixos/hardware/asus.nix
 
     ../../modules/nixos/networking.nix
+    ../../modules/nixos/openssh.nix
     ../../modules/nixos/netbird.nix
     ../../modules/nixos/packages.nix
     ../../modules/nixos/hermes.nix
+    ../../modules/nixos/hermes-ssh.nix
     ../../modules/nixos/obsidian-hermes-vault.nix
     ../../modules/nixos/graphify.nix
     ../../modules/nixos/hermes-graphify.nix
@@ -53,6 +55,14 @@
     group = "users";
     mode = "0400";
   };
+  sops.secrets.hermes_ssh_id_ed25519 = {
+    sopsFile = ../../secrets/ssh.yaml;
+    key = "data";
+    path = "/run/hermes/ssh/id_ed25519";
+    owner = "yashindo";
+    group = "users";
+    mode = "0400";
+  };
 
   nix.settings = inputs.aagl.nixConfig;
 
@@ -60,6 +70,7 @@
 
   modules = {
     netbird.enable = true;
+    openssh.enable = true;
     steam.enable = true;
     kvm-manager.enable = true;
 
