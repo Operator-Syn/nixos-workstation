@@ -33,7 +33,13 @@ hosts/
 | Hardware | generated hardware scan, filesystems, CPU microcode |
 | Graphics | GPU bus IDs, NVIDIA mode, PRIME/offload settings |
 | Imports | selecting reusable modules from `modules/nixos/` |
-| Services | Hermes, Graphify, Obsidian vault, NetBird |
+| Services | Hermes, Graphify, Obsidian vault, NetBird, and OpenSSH |
+
+The host enables OpenSSH through `modules.openssh.enable`. The server accepts
+public-key authentication while disabling password, keyboard-interactive, and
+root login. User-level SSH client configuration and the private key provisioned
+for Hermes remain separate concerns under Home Manager and SOPS-backed host
+configuration.
 
 ## Enabled Development Support
 
@@ -118,8 +124,8 @@ kernel package set. Both the `asus-armoury` module and the NVIDIA modules must
 be present in the built generation before switching to it.
 
 The NVIDIA host configuration enables Dynamic Boost while keeping fine-grained
-power management enabled and the NVIDIA power-management service disabled in
-the rollback configuration. Dynamic Boost is firmware- and GPU-mode-dependent;
+power management enabled and the NVIDIA power-management service disabled in the
+rollback configuration. Dynamic Boost is firmware- and GPU-mode-dependent;
 `nvidia-smi -q -d POWER` is the authoritative check for the active and maximum
 power limits. A 90 W maximum does not mean the current boot is permitted to use
 90 W, especially in ASUS Hybrid mode.
