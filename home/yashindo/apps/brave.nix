@@ -48,6 +48,9 @@ in {
   config = lib.mkIf config.modules.brave.enable {
     home.packages = [
       pkgs.brave
+      # Keep a second Chromium implementation available for browser tooling
+      # when Brave-specific startup or profile state is unsuitable.
+      pkgs.google-chrome
       pkgs.kdePackages.kdialog
       brave-gpu-picker
     ];
