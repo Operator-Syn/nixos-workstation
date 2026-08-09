@@ -16,11 +16,6 @@ modules/
     |-- development/      Distrobox and system-level development support
     |-- hardware/         Bluetooth and reusable hardware-related modules
     |-- users/             system user declarations
-    |-- hermes.nix        Hermes OCI backend and runtime CLI
-    |-- hermes-ssh.nix    read-only SSH key mount for the Hermes backend
-    |-- graphify.nix      Graphify services and indexing
-    |-- hermes-graphify.nix Hermes-to-Graphify integration
-    |-- obsidian-hermes-vault.nix shared Obsidian vault
     |-- netbird.nix       NetBird VPN client
     |-- ollama.nix        optional local Ollama service
     |-- kvm-manager.nix   KVM/libvirt and virt-manager
@@ -42,18 +37,13 @@ modules/
 | `development/` | Distrobox setup, declared mutable boxes, optional Python support, containers |
 | `hardware/` | Bluetooth and reusable ASUS hardware support |
 | `users/` | system users, shells, groups |
-| `hermes.nix` | Hermes OCI backend image, runtime CLI, GitHub wrappers, and runtime paths |
-| `hermes-ssh.nix` | mounts the SOPS-provisioned SSH private key into the Hermes container read-only |
-| `graphify.nix` | Graphify indexing service and watcher |
-| `hermes-graphify.nix` | Hermes Graphify integration services |
-| `obsidian-hermes-vault.nix` | shared Obsidian vault wiring |
-| `netbird.nix` | NetBird VPN client |
+ | `netbird.nix` | NetBird VPN client |
 | `ollama.nix` | optional local Ollama service; currently not enabled by Hiraeth |
 | `openssh.nix` | OpenSSH server with password and root login disabled |
 | `packages.nix` | system-wide packages |
 | `scripts.nix` | `rebuild`, `update-system`, `update-hardware`, `nvrun`, `getGPU` |
 | `steam.nix` and `steam/` | Steam, GameMode, gamescope, launchers, and Protontricks support |
-| `kvm-manager.nix` | KVM/libvirt services and virt-manager |
+| `kvm-manager.nix` | KVM/libvirt services, default network startup, and virt-manager |
 | `virtualisation.nix` | Docker service |
 
 ## Good Module Shape
