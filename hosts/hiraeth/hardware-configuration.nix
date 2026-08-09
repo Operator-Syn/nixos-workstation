@@ -29,7 +29,6 @@
       options = [ "fmask=0077" "dmask=0077" ];
     };
 
-
   swapDevices = [ ];
 
   nixpkgs.hostPlatform = lib.mkDefault "x86_64-linux";
