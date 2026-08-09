@@ -33,13 +33,12 @@ hosts/
 | Hardware | generated hardware scan, filesystems, CPU microcode |
 | Graphics | GPU bus IDs, NVIDIA mode, PRIME/offload settings |
 | Imports | selecting reusable modules from `modules/nixos/` |
-| Services | Hermes, Graphify, Obsidian vault, NetBird, and OpenSSH |
+| Services | Obsidian, NetBird, and OpenSSH |
 
 The host enables OpenSSH through `modules.openssh.enable`. The server accepts
 public-key authentication while disabling password, keyboard-interactive, and
-root login. User-level SSH client configuration and the private key provisioned
-for Hermes remain separate concerns under Home Manager and SOPS-backed host
-configuration.
+root login. User-level SSH client configuration and its optional private key
+remain separate concerns under Home Manager and SOPS-backed configuration.
 
 ## Enabled Development Support
 
@@ -103,13 +102,7 @@ After activation, verify the live generation separately:
 
 ```sh
 systemctl --failed
-systemctl status hermes-desktop-backend.service --no-pager
 ```
-
-Hermes runs as Yashindo inside a declarative Docker OCI container. The
-container uses Yashindo's numeric UID/GID, mounts `/home/yashindo` at the same
-path, and reaches the loopback desktop backend on port `9119`. Graphify and
-the read-only notes MCP remain host services backed by the shared vault.
 
 ## Hiraeth ASUS and NVIDIA Compatibility
 
