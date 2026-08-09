@@ -91,7 +91,6 @@ class GraphifyNixAdapterTests(unittest.TestCase):
             "plasma-manager",
             "sops-nix",
             "aagl",
-            "hermes-agent",
         }
         actual = {
             link["target"].removeprefix("nix_input_")
