@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the deterministic Markdown portion of the Hermes Graphify vault."""
+"""Build the deterministic Markdown portion of a Graphify vault."""
 
 from __future__ import annotations
 
