@@ -42,7 +42,6 @@
                   "applications:org.kde.dolphin.desktop"
                   "applications:firefox.desktop"
                   "applications:brave-browser.desktop"
-                  "applications:hermes-desktop.desktop"
                   "applications:code.desktop"
                   "applications:Alacritty.desktop"
                 ];
