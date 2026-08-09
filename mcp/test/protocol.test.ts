@@ -338,4 +338,103 @@ describe("MCP stdio workflow", () => {
     expect(result.fileCount).toBe(3);
     expect(runGit(repository, ["rev-list", "--count", "HEAD"]).stdout.trim()).toBe("4");
   });
+
+  test("rejects a working-tree commit when a new unrelated path appears after review", async () => {
+    const repository = await createTemporaryRepository();
+    const server = await startServer({env: {...process.env, NIX_CONFIG_MCP_ROOT: repository}});
+    await server.call(1, "initialize", {
+      protocolVersion: "2025-06-18",
+      capabilities: {},
+      clientInfo: {name: "test", version: "1"},
+    });
+
+    const prepared = await server.call(2, "tools/call", {name: "prepare_working_tree_commit", arguments: {}});
+    const operation = JSON.parse(prepared.result?.content?.[0]?.text ?? "{}");
+    await writeFile(`${repository}/unrelated.txt`, "arrived after review\n");
+
+    const committed = await server.call(3, "tools/call", {
+      name: "git_commit_working_tree",
+      arguments: {
+        operationId: operation.operationId,
+        approvalHash: operation.approvalHash,
+        commits: operation.paths.map((path) => ({path, message: `Commit ${path}.`})),
+      },
+    });
+    expect(committed.result?.isError).toBe(true);
+    expect(runGit(repository, ["rev-list", "--count", "HEAD"]).stdout.trim()).toBe("1");
+  });
+
+  test("rejects protected unrelated paths instead of hiding them during an applied commit", async () => {
+    const repository = await createTemporaryRepository();
+    const server = await startServer({env: {...process.env, NIX_CONFIG_MCP_ROOT: repository}});
+    await server.call(1, "initialize", {
+      protocolVersion: "2025-06-18",
+      capabilities: {},
+      clientInfo: {name: "test", version: "1"},
+    });
+
+    const prepared = await server.call(2, "tools/call", {
+      name: "prepare_patch",
+      arguments: {changes: [{path: "tracked.txt", content: "prepared change\n"}]},
+    });
+    const operation = JSON.parse(prepared.result?.content?.[0]?.text ?? "{}");
+    const applied = await server.call(3, "tools/call", {
+      name: "apply_approved_patch",
+      arguments: {operationId: operation.operationId, approvalHash: operation.approvalHash},
+    });
+    expect(applied.result?.isError).not.toBe(true);
+    await writeFile(`${repository}/id_ed25519`, "unrelated protected path\n");
+
+    const committed = await server.call(4, "tools/call", {
+      name: "git_commit_files",
+      arguments: {
+        operationId: operation.operationId,
+        approvalHash: operation.approvalHash,
+        commits: [{path: "tracked.txt", message: "Commit tracked content."}],
+      },
+    });
+    expect(committed.result?.isError).toBe(true);
+    expect(runGit(repository, ["rev-list", "--count", "HEAD"]).stdout.trim()).toBe("1");
+  });
+
+  test("preflights all commit messages before staging any applied file", async () => {
+    const repository = await createTemporaryRepository();
+    const server = await startServer({env: {...process.env, NIX_CONFIG_MCP_ROOT: repository}});
+    await server.call(1, "initialize", {
+      protocolVersion: "2025-06-18",
+      capabilities: {},
+      clientInfo: {name: "test", version: "1"},
+    });
+
+    const prepared = await server.call(2, "tools/call", {
+      name: "prepare_patch",
+      arguments: {
+        changes: [
+          {path: "tracked.txt", content: "first applied file\n"},
+          {path: "added.txt", content: "second applied file\n"},
+        ],
+      },
+    });
+    const operation = JSON.parse(prepared.result?.content?.[0]?.text ?? "{}");
+    const applied = await server.call(3, "tools/call", {
+      name: "apply_approved_patch",
+      arguments: {operationId: operation.operationId, approvalHash: operation.approvalHash},
+    });
+    expect(applied.result?.isError).not.toBe(true);
+
+    const committed = await server.call(4, "tools/call", {
+      name: "git_commit_files",
+      arguments: {
+        operationId: operation.operationId,
+        approvalHash: operation.approvalHash,
+        commits: [
+          {path: "tracked.txt", message: "Commit tracked content."},
+          {path: "added.txt", message: "Invalid subject"},
+        ],
+      },
+    });
+    expect(committed.result?.isError).toBe(true);
+    expect(runGit(repository, ["rev-list", "--count", "HEAD"]).stdout.trim()).toBe("1");
+    expect(runGit(repository, ["diff", "--cached", "--name-only"]).stdout.trim()).toBe("");
+  });
 });
