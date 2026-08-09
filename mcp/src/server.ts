@@ -313,13 +313,15 @@ function visibleGitLines(output: string): string[] {
   });
 }
 
-function workingTreePaths(statusOutput: string): string[] {
-  const paths = new Set<string>();
-  for (const record of statusOutput.split("\0").filter(Boolean)) {
-    if (record.length < 4) continue;
-    paths.add(safeRelativePath(record.slice(3), true));
-  }
-  return [...paths].sort();
+function workingTreeRecords(statusOutput: string, allowSecrets = false): Array<{path: string; index: string; worktree: string}> {
+  return statusOutput.split("\0").filter(Boolean).flatMap((record) => {
+    if (record.length < 4) return [];
+    return [{index: record[0], worktree: record[1], path: safeRelativePath(record.slice(3), allowSecrets)}];
+  });
+}
+
+function workingTreePaths(statusOutput: string, allowSecrets = false): string[] {
+  return [...new Set(workingTreeRecords(statusOutput, allowSecrets).map((record) => record.path))].sort();
 }
 
 async function workingTreeDiff(paths: string[]): Promise<string> {
@@ -349,7 +351,7 @@ async function workingTreeDiff(paths: string[]): Promise<string> {
 async function captureWorkingTreeSnapshot(): Promise<WorkingTreeSnapshot> {
   const status = runAllowed("git", ["status", "--porcelain=v1", "-z", "--no-renames", "--untracked-files=all"], repoRoot);
   if (status.status !== 0) fail(status.stderr || "Could not inspect the working tree.");
-  const paths = workingTreePaths(status.stdout);
+  const paths = workingTreePaths(status.stdout, true);
   const contentHashes = await Promise.all(paths.map(async (path) => {
     await safePath(path, false, true);
     return {path, hash: digest(await readSafeFile(path, true))};
@@ -435,20 +437,12 @@ server.tool("read_project_overview", "List non-sensitive repository files and th
   return result({repository: repoRoot, files: visibleGitLines(output.stdout).filter(Boolean).slice(0, 500), flake: "flake.nix", host: "hosts/hiraeth/default.nix"});
 });
 
-server.tool("read_authority_contract", "Explain the MCP repository boundary, approval model, Hermes runtime rules, and protected paths.", {}, async () => {
+server.tool("read_authority_contract", "Explain the MCP repository boundary, approval model, declarative rules, and protected paths.", {}, async () => {
   return result({repository: repoRoot, ...authorityContract});
 });
 
-server.tool("validate_declarative_contract", "Validate declarative Hermes/container and MCP authority conventions from repository source only.", {}, async () => {
+server.tool("validate_declarative_contract", "Validate declarative and MCP authority conventions from repository source only.", {}, async () => {
   const paths = [
-    "hosts/hiraeth/default.nix",
-    "modules/nixos/users/yashindo.nix",
-    "modules/nixos/hermes.nix",
-    "modules/nixos/graphify.nix",
-    "modules/nixos/hermes-graphify.nix",
-    "modules/nixos/obsidian-hermes-vault.nix",
-    "home/yashindo/apps/hermes-desktop.nix",
-    "flake.nix",
     "mcp/src/server.ts",
   ];
   const entries = await Promise.all(paths.map(async (path) => [path, (await readSafeFile(path)) ?? ""] as const));
@@ -512,8 +506,12 @@ server.tool("git_commit_working_tree", "Commit the reviewed working tree one fil
   }
   if (new Set(requestedPaths).size !== requestedPaths.length) fail("Each reviewed file may appear only once.");
 
+  await ensureWorkingTreeOperationCurrent(operation);
   const beforeStatus = runAllowed("git", ["status", "--short", "--untracked-files=all"], repoRoot);
   if (beforeStatus.status !== 0) fail(beforeStatus.stderr || "Could not inspect the working tree before committing.");
+  const status = runAllowed("git", ["status", "--porcelain=v1", "-z", "--no-renames", "--untracked-files=all"], repoRoot);
+  if (status.status !== 0) fail(status.stderr || "Could not inspect the working tree before committing.");
+  const statusByPath = new Map(workingTreeRecords(status.stdout, true).map((record) => [record.path, record]));
 
   const results = [];
   for (const entry of commits) {
@@ -522,18 +520,20 @@ server.tool("git_commit_working_tree", "Commit the reviewed working tree one fil
     const recorded = operation.snapshot.contentHashes.find((record) => record.path === path);
     if (!recorded) fail(`The file was not part of the reviewed snapshot: ${path}`);
     if (digest(current) !== recorded.hash) fail(`The file changed after preparation: ${path}`);
-    if (current !== null) {
-      // Present (modified, untracked, or mode change): stage the exact path.
-      // Already-staged deletions are skipped because the file is gone from disk.
-      const staged = runAllowed("git", ["add", "--", path], repoRoot);
+    if (current !== null || statusByPath.get(path)?.worktree !== " ") {
+      // Stage the exact path, including an unstaged deletion.
+      const staged = runAllowed("git", ["add", "--all", "--", path], repoRoot);
       if (staged.status !== 0) fail(staged.stderr || `Could not stage the reviewed file: ${path}`);
     }
     const commit = runAllowed("git", ["commit", "-m", entry.message, "--", path], repoRoot, 120_000);
     results.push({path, ...commit});
+    if (commit.status !== 0) break;
   }
 
   const afterStatus = runAllowed("git", ["status", "--short", "--untracked-files=all"], repoRoot);
   return result({
+    ok: results.length === requestedPaths.length && results.every((commit) => commit.status === 0),
+    partial: results.some((commit) => commit.status === 0) && results.length < requestedPaths.length,
     operationId,
     approvalHash,
     fileCount: requestedPaths.length,
@@ -655,26 +655,32 @@ server.tool("prepare_commits", "After a prepared operation has been applied, sug
 server.tool("git_commit_files", "After review, create explicitly approved one-file commits for an applied prepared operation; rejects unrelated dirty paths.", {operationId: z.string(), approvalHash: z.string(), commits: z.array(z.object({path: z.string(), message: z.string().min(1).max(4096)})).min(1)}, async ({operationId, approvalHash, commits}) => {
   const operation = getOperation(operationId, approvalHash);
   await ensureOperationCurrent({...operation, changes: operation.changes.map((change) => ({...change, before: change.after, beforeHash: change.afterHash}))});
-  const status = runAllowed("git", ["status", "--porcelain=v1", "--untracked-files=all"], repoRoot);
   const expected = new Set(operation.changes.map((change) => change.path));
-  const requested = new Set(commits.map((commit) => safeRelativePath(commit.path)));
-  if (requested.size !== expected.size || [...expected].some((path) => !requested.has(path))) fail("Commits must cover exactly the files in the prepared operation.");
-  const dirtyPaths = visibleGitLines(status.stdout)
-    .filter((line) => line && !line.startsWith("##"))
-    .map((line) => line.slice(3).split(" -> ").at(-1)?.trim())
-    .filter((path): path is string => Boolean(path));
+  const normalizedCommits = commits.map((commit) => ({...commit, path: safeRelativePath(commit.path)}));
+  const requested = new Set(normalizedCommits.map((commit) => commit.path));
+  if (normalizedCommits.length !== expected.size || requested.size !== expected.size || [...expected].some((path) => !requested.has(path))) fail("Commits must cover exactly the files in the prepared operation.");
+  if (normalizedCommits.some((commit) => !validCommitMessage(commit.message))) fail("Commit messages must have a sentence-style subject ending with a period; optional lines may be valid Co-authored-by trailers.");
+
+  const status = runAllowed("git", ["status", "--porcelain=v1", "-z", "--no-renames", "--untracked-files=all"], repoRoot);
+  if (status.status !== 0) fail(status.stderr || "Could not inspect the working tree before committing.");
+  const dirtyPaths = workingTreePaths(status.stdout);
   if (dirtyPaths.some((path) => !expected.has(path))) fail("Unrelated working-tree changes must be resolved before committing this operation.");
   const results = [];
-  for (const commit of commits) {
-    const path = safeRelativePath(commit.path);
-    if (!validCommitMessage(commit.message)) fail("Commit messages must have a sentence-style subject ending with a period; optional lines may be valid Co-authored-by trailers.");
-    const committed = runAllowed("git", ["add", "--", path], repoRoot);
+  for (const commit of normalizedCommits) {
+    const {path} = commit;
+    const committed = runAllowed("git", ["add", "--all", "--", path], repoRoot);
     if (committed.status !== 0) return result(committed);
     const commitResult = runAllowed("git", ["commit", "--only", "-m", commit.message, "--", path], repoRoot, 120_000);
     results.push({path, ...commitResult});
     if (commitResult.status !== 0) break;
   }
-  return result({beforeStatus: status, commits: results, afterStatus: runAllowed("git", ["status", "--short", "--untracked-files=all"], repoRoot)});
+  return result({
+    ok: results.length === normalizedCommits.length && results.every((commit) => commit.status === 0),
+    partial: results.some((commit) => commit.status === 0) && results.length < normalizedCommits.length,
+    beforeStatus: status,
+    commits: results,
+    afterStatus: runAllowed("git", ["status", "--short", "--untracked-files=all"], repoRoot),
+  });
 });
 
 const transport = new StdioServerTransport();
