@@ -31,12 +31,17 @@ home/
 | Category | Examples |
 | --- | --- |
 | Terminal and shell | Alacritty, fish, starship |
-| Apps | Brave, Firefox, Discord, VS Code |
+| Apps | Brave, Google Chrome, Firefox, Discord, Obsidian, VS Code |
 | User packages | fonts, utilities, creative tools |
 | Desktop preferences | Plasma panels, colors, wallpaper, icons |
 | User services | app-level user services and autostart entries |
 
 General-purpose language runtimes such as Node and Python should usually stay out of `home/yashindo/packages.nix`. Prefer `devshells/` for project-scoped tooling and Distrobox for mutable dependency experiments.
+
+The Obsidian module keeps the desktop launcher separate from Obsidian's native
+Linux CLI. The CLI is provisioned at `~/.local/bin/obsidian`, while the desktop
+entry uses an executable named `obsidian` so Obsidian's CLI registration check
+does not identify the application as plain Electron.
 
 ## Does Not Belong Here
 
