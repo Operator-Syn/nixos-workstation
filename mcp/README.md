@@ -32,7 +32,7 @@ configuration.
 | Tool | Purpose | Authority |
 | --- | --- | --- |
 | `read_project_overview` | List repository files and Nix entry points | Read-only |
-| `read_authority_contract` | Return MCP, Hermes, and protected-path rules | Read-only |
+| `read_authority_contract` | Return MCP, declarative, and protected-path rules | Read-only |
 | `validate_declarative_contract` | Check source-level declarative and MCP conventions | Read-only |
 | `read_project_file` | Read one non-sensitive repository file | Read-only |
 | `find_nix_references` | Search Nix files with `rg` | Read-only |
@@ -62,7 +62,12 @@ specifically for externally-created dirty changes: preparation returns the full
 visible diff and a snapshot hash, and commit rechecks that exact snapshot, then
 creates one commit per reviewed file from the approved `commits` list (each file
 with its own message). All reviewed paths must be represented, and no other path
-may be committed. Protected paths are rejected rather than silently omitted. The
+may be committed. The working-tree path rechecks the complete snapshot before
+staging, including the reviewed path set, and stages unstaged deletions explicitly.
+The applied-operation path validates all paths, messages, and coverage before its
+first staging mutation; protected unrelated paths are rejected rather than hidden.
+Both paths remain sequential and non-atomic: a later commit failure can leave
+earlier one-file commits applied, and the result reports that partial state. The
 existing commit tools require one commit per file and reject unrelated dirty
 paths. No tool pushes, merges, deploys, or activates NixOS.
 
@@ -83,8 +88,8 @@ access. `validate_mcp` and `validate_repository` use fixed commands and do not
 accept command arguments.
 
 Use `read_authority_contract` to inspect the current boundary and
-`validate_declarative_contract` to check source-level Hermes/container,
-GitHub-wrapper, imperative-settings, and MCP safety conventions. These tools do
+`validate_declarative_contract` to check source-level declarative and MCP safety
+conventions. These tools do
 not inspect live `/run`, credentials, user homes, or the vault.
 
 ## Security boundary
@@ -99,23 +104,9 @@ workspaces also exclude denied paths. Prepared operations fail
 when a targeted file changes; commit operations additionally reject unrelated
 dirty paths.
 
-Protected Hermes state and vault plans remain outside MCP mutation targets. The
+Protected user state and vault plans remain outside MCP mutation targets. The
 shared vault and runtime credentials are separate authority domains; MCP does
 not infer live permissions from evaluated or built Nix output.
-
-## Hermes GitHub access
-
-Hermes uses explicit account-specific wrappers inside its backend container:
-
-```sh
-gh-feilhann <command>
-gh-operator-syn <command>
-```
-
-These wrappers use SOPS-managed tokens mounted as individual read-only files and
-isolated Hermes-owned `gh` configuration directories. Agents must select the
-appropriate wrapper, never use the default `gh` account, never print or read
-token files, and never request sudo.
 
 ## Checks
 
