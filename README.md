@@ -52,13 +52,13 @@ This repo is meant to be readable first: each folder owns one layer of the syste
 | Enter Node dev shell | `nix develop ~/nix-config#node` |
 | Enter Python + Playwright shell | `nix develop ~/nix-config#python-playwright` |
 | Test the Project MCP | `bun run mcp:test` |
-| Test Hermes and Graphify helpers | `pipenv run python -m unittest discover -s tests` |
+| Test Python helpers | `pipenv run python -m unittest discover -s tests` |
 | Query the repository graph | `pipenv run graphify query "your question"` |
 | Refresh the incremental graph | `pipenv run graphify update .` |
 | Create declared Debian Distrobox | `assemble-debian-dev` |
 | Enter Debian Distrobox | `distrobox enter debian-dev` |
 
-`rb` is the canonical Fish alias for the system-wide `rebuild` helper. It refreshes the hardware configuration and activates the NixOS generation. Use `rebuild` directly from another shell, `update-system` to update flake inputs before rebuilding, or `uh`/`update-hardware` when only the hardware scan is needed. The direct `nixos-rebuild` command above is a low-level fallback that bypasses the custom hardware refresh. Activation is still user-owned and should be followed by live checks such as `systemctl --failed`, `systemctl status hermes-desktop-backend.service --no-pager`, and `docker ps`.
+`rb` is the canonical Fish alias for the system-wide `rebuild` helper. It refreshes the hardware configuration and activates the NixOS generation. Use `rebuild` directly from another shell, `update-system` to update flake inputs before rebuilding, or `uh`/`update-hardware` when only the hardware scan is needed. The direct `nixos-rebuild` command above is a low-level fallback that bypasses the custom hardware refresh. Activation is still user-owned and should be followed by live checks such as `systemctl --failed` and `docker ps`.
 
 ## How The Layers Fit
 
@@ -83,36 +83,9 @@ This repository provides a local stdio MCP server for repository-aware NixOS wor
 
 The Project MCP also exposes read-only authority and declarative-contract checks. They enforce the distinction between repository changes prepared by an agent and live NixOS activation performed by the user. Built configuration and Graphify output are evidence, not substitutes for live verification.
 
-The read-only `read_authority_contract` tool describes this boundary, while `validate_declarative_contract` checks the repository source for the declarative Hermes installation/container boundary, imperative user settings, and safe MCP command boundaries. These checks do not inspect live `/run`, user homes, credentials, or the protected vault.
+The read-only `read_authority_contract` tool describes this boundary, while `validate_declarative_contract` checks the repository source for declarative configuration and safe MCP command boundaries. These checks do not inspect live `/run`, user homes, credentials, or the protected vault.
 
 The MCP may inspect the repository, prepare patches, apply explicitly approved patches, validate the flake, and create explicitly approved one-file commits. Users retain ownership of `sudo`, `rb`/NixOS activation, reboot, systemd checks, and live permission verification.
-
-## Declarative Hermes Installation Boundary
-
-Hermes is installed and run declaratively, while its provider, model, tools, approvals, MCP servers, and other customization remain imperative in `/home/yashindo/.hermes`. The backend runs in a Docker OCI container under Yashindo's UID/GID with the full home mounted at `/home/yashindo`; its desktop API remains bound to localhost on port `9119`. Graphify and the notes MCP remain separate host services for the shared vault and can be configured through Hermes at runtime.
-
-When Graphify is enabled, NixOS runs the Graphify MCP at `http://127.0.0.1:9292/mcp` and the read-only notes MCP at `http://127.0.0.1:9293/mcp`. Add or remove those connections from Hermes Desktop or with `hermes mcp add`; NixOS owns service availability, while Hermes owns connection selection.
-
-Configure those settings from Hermes Desktop after activation: use Settings → Providers/Accounts for authentication, Settings → Model for the provider and model, Settings → Tools & Keys or Skills → Tools for toolsets, Settings → MCP for MCP servers, and Settings → Safety/Workspace for runtime behavior. These changes are written to the user-owned Hermes state and are not overwritten by Nix activation.
-
-### GitHub CLI accounts in Hermes
-
-The Hermes backend has two explicit GitHub CLI entry points:
-
-```sh
-gh-feilhann <command>
-gh-operator-syn <command>
-```
-
-Use the wrapper for the account that should perform each operation. The wrappers inject SOPS-managed tokens through read-only container mounts and use isolated Hermes-owned `gh` configuration directories. Do not use the default `gh` command inside Hermes, switch accounts globally, read `/run/secrets` or `/run/hermes/gh`, or print token values. Verify identities without exposing credentials:
-
-```sh
-docker exec hermes-backend gh-feilhann api user --jq .login
-docker exec hermes-backend gh-operator-syn api user --jq .login
-```
-
-The host shell may continue using `gh auth status` and `gh auth switch` independently. Hermes cannot use `sudo`, NixOS activation, or the host keyring for GitHub access.
-
 
 ## Project Graphify
 
@@ -124,7 +97,7 @@ Graphify is available as a Pipenv-managed, read-only discovery MCP alongside the
 
 The script performs a forced full extraction so older pre-`#1504` node IDs are replaced, merges the Nix adapter output, and exports HTML. Query it with `pipenv run graphify query "your question"`. Graph output stays in the ignored `graphify-out/` directory, and `.graphifyignore` excludes secrets and assistant configuration. The Nix adapter records source-level imports, flake wiring, and `inputs.<name>` usage without evaluating the flake; Nix remains authoritative and is validated with `nix flake check`.
 
-Graphify is for discovery only. It must not be used to mutate Nix source, ACLs, Hermes state, credentials, or vault plans. Run `pipenv run graphify update .` after source changes when the graph should be refreshed without a full extraction.
+Graphify is for discovery only. It must not be used to mutate Nix source, ACLs, credentials, or vault plans. Run `pipenv run graphify update .` after source changes when the graph should be refreshed without a full extraction.
 
 ## Working Rules
 
