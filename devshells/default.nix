@@ -7,5 +7,4 @@
   python-playwright = import ./python-playwright.nix {inherit pkgs;};
   cuda = import ./cuda.nix {inherit pkgs;};
   latex = import ./latex.nix {inherit pkgs;};
-  dalanpad = import ./dalanpad.nix {inherit pkgs;};
 }
