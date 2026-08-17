@@ -10,11 +10,11 @@
   # (e.g. VS Code's ChatGPT extension) bundle. Use that directly instead.
   codex-bin = pkgs.stdenv.mkDerivation rec {
     pname = "codex";
-    version = "0.144.1";
+    version = "0.147.0";
 
     src = pkgs.fetchurl {
       url = "https://registry.npmjs.org/@openai/codex/-/codex-${version}-linux-x64.tgz";
-      hash = "sha256-4qZNQhwQqvC348DovXG3Hkl9dYIwAzGLZ0onjXGt0Mc=";
+      hash = "sha256-yWl0DPgpfkwxkFzVUe/rLJmvUIDBLCNr34JVmLJQE5o=";
     };
 
     nativeBuildInputs = [pkgs.makeBinaryWrapper];
