@@ -70,6 +70,10 @@
     sudo -k
   '';
 
+  update-codex = pkgs.writeShellScriptBin "update-codex" ''
+    exec ${pkgs.bash}/bin/bash "$HOME/nix-config/scripts/update_codex.sh" "$@"
+  '';
+
   rebuild = pkgs.writeShellScriptBin "rebuild" ''
     sudo=/run/wrappers/bin/sudo
     sudo_keepalive_pid=""
@@ -108,12 +112,102 @@
     stop_sudo_keepalive
     trap - EXIT
   '';
+
+  wifi-hotspot = pkgs.writeShellScriptBin "wifi-hotspot" ''
+    set -euo pipefail
+
+    nmcli=${pkgs.networkmanager}/bin/nmcli
+    interface="''${1:-}"
+    ssid="''${2:-}"
+    connection="''${3:-}"
+
+    if [ "$#" -gt 3 ]; then
+      echo "Usage: wifi-hotspot [interface] [ssid] [connection-name]" >&2
+      exit 2
+    fi
+
+    if [ -z "$interface" ]; then
+      while IFS=: read -r candidate type state; do
+        [ "$type" = "wifi" ] || continue
+        [ "$state" = "connected" ] || [ "$state" = "disconnected" ] || continue
+        [ "$("$nmcli" -g WIFI-PROPERTIES.AP device show "$candidate")" = "yes" ] || continue
+        interface="$candidate"
+        break
+      done < <("$nmcli" -t -f DEVICE,TYPE,STATE device status)
+    fi
+
+    if [ -z "$interface" ]; then
+      echo "No Wi-Fi adapter with AP support was found." >&2
+      exit 1
+    fi
+
+    if [ -z "$ssid" ]; then
+      read -r -p "Hotspot SSID: " ssid
+    fi
+    if [ -z "$ssid" ]; then
+      echo "The hotspot SSID cannot be empty." >&2
+      exit 1
+    fi
+
+    if [ -z "$connection" ]; then
+      connection="$ssid"
+    fi
+
+    if ! "$nmcli" -t -f DEVICE,TYPE,STATE device status |
+      awk -F: '$2 == "ethernet" && $3 == "connected" { found = 1 } END { exit !found }'
+    then
+      echo "An active Ethernet connection is required for internet sharing." >&2
+      exit 1
+    fi
+
+    printf 'Hotspot password (at least 8 characters): '
+    read -r -s password
+    printf '\n'
+
+    if [ ''${#password} -lt 8 ]; then
+      echo "The hotspot password must contain at least 8 characters." >&2
+      exit 1
+    fi
+
+    if "$nmcli" connection show "$connection" >/dev/null 2>&1; then
+      profile_type="$("$nmcli" -g connection.type connection show "$connection")"
+      if [ "$profile_type" != "802-11-wireless" ]; then
+        echo "The connection name belongs to a non-Wi-Fi profile: $connection" >&2
+        exit 1
+      fi
+
+      "$nmcli" connection modify "$connection" \
+        802-11-wireless.ssid "$ssid" \
+        802-11-wireless.mode ap \
+        802-11-wireless.band "" \
+        802-11-wireless.channel "" \
+        ipv4.method shared \
+        wifi-sec.key-mgmt wpa-psk \
+        wifi-sec.psk "$password"
+    else
+      "$nmcli" device wifi hotspot \
+        ifname "$interface" \
+        con-name "$connection" \
+        ssid "$ssid" \
+        password "$password"
+
+      "$nmcli" connection modify "$connection" \
+        802-11-wireless.mode ap \
+        802-11-wireless.band "" \
+        802-11-wireless.channel "" \
+        ipv4.method shared
+    fi
+
+    exec "$nmcli" connection up "$connection" ifname "$interface"
+  '';
 in {
   environment.systemPackages = [
     getGPU
     nvrun
     rebuild
+    update-codex
     update-hardware
     update-system
+    wifi-hotspot
   ];
 }
