@@ -1,11 +1,10 @@
 {pkgs}: let
   lib = pkgs.lib;
 in rec {
-  shellHook = ''exec ${pkgs.fish}/bin/fish'';
-
-  makeShellHook = name: ''
-    export name="${name}"
-    exec ${pkgs.fish}/bin/fish
+  shellHook = ''
+    if [[ $- == *i* ]]; then
+      exec ${pkgs.fish}/bin/fish
+    fi
   '';
 
   nativeLibraries = with pkgs; [
