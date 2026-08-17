@@ -29,6 +29,7 @@
     ../../modules/nixos/kvm-manager.nix
     ../../modules/nixos/virtualisation.nix
     ../../modules/nixos/steam.nix
+    ../../modules/nixos/bedrock-on-linux
   ];
 
   nix.settings = inputs.aagl.nixConfig;
@@ -39,6 +40,7 @@
     netbird.enable = true;
     openssh.enable = true;
     steam.enable = true;
+    bedrock-on-linux.enable = true;
     kvm-manager.enable = true;
 
     distrobox.debian-dev.enable = true;
