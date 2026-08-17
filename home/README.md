@@ -41,7 +41,9 @@ General-purpose language runtimes such as Node and Python should usually stay ou
 The Obsidian module keeps the desktop launcher separate from Obsidian's native
 Linux CLI. The CLI is provisioned at `~/.local/bin/obsidian`, while the desktop
 entry uses an executable named `obsidian` so Obsidian's CLI registration check
-does not identify the application as plain Electron.
+does not identify the application as plain Electron. Obsidian's desktop process
+also starts at login iconified and hidden from the taskbar, because the CLI
+requires the desktop application to be running.
 
 ## Does Not Belong Here
 
