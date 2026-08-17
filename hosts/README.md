@@ -104,6 +104,25 @@ After activation, verify the live generation separately:
 systemctl --failed
 ```
 
+## RTL8852BE Hotspot Stability
+
+The internal RTL8852BE adapter uses the in-kernel `rtw89` driver. Hiraeth
+disables its low-power and PCIe link-power states because they can cause queue
+flush failures while the adapter is operating as a NetworkManager access point.
+This improves hotspot stability at the cost of some Wi-Fi power savings.
+
+After switching and rebooting, verify the parameters are active:
+
+```sh
+cat /sys/module/rtw89_core/parameters/disable_ps_mode
+cat /sys/module/rtw89_pci/parameters/disable_aspm_l1
+cat /sys/module/rtw89_pci/parameters/disable_aspm_l1ss
+cat /sys/module/rtw89_pci/parameters/disable_clkreq
+```
+
+Each command should print `Y`. Then run `wifi-hotspot` and verify that a
+client receives an address and can reach the internet through Ethernet.
+
 ## Hiraeth ASUS and NVIDIA Compatibility
 
 Hiraeth is an ASUS TUF Gaming A16 FA607NUQ with AMD integrated graphics and
