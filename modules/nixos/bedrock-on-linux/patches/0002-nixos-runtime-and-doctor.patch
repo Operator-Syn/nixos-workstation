@@ -1,0 +1,62 @@
+diff --git a/bol/doctor.py b/bol/doctor.py
+--- a/bol/doctor.py
++++ b/bol/doctor.py
+@@ -69,6 +69,19 @@
+     return _acknowledge_gpu_crash()
+ 
+ 
++def _qr_rendering_ready():
++    """Check the complete local QR rendering path used by the sign-in UI."""
++    try:
++        from .qrcodegen import QrCode
++        from PIL import Image
++        qr = QrCode.encode_text(
++            "https://www.microsoft.com/link", QrCode.Ecc.LOW)
++        image = Image.new("1", (qr.get_size() + 4, qr.get_size() + 4), 1)
++        return image.size[0] > 21
++    except Exception:
++        return False
++
++
+ def doctor(acknowledge_gpu_crash=False):
+     if acknowledge_gpu_crash and not _acknowledge_gpu_crash():
+         return False
+@@ -92,5 +105,12 @@
+     print(f"  {'customtkinter':12} : "
+           f"{'OK (GUI)' if ctk_ok else 'auto-installed on launch'}")
++    qr_ok = _qr_rendering_ready()
++    print(f"  {'pillow/QR':12} : "
++          f"{'OK (GUI)' if qr_ok else 'MANQUANT (GUI)'}")
++    if not qr_ok:
++        warn("Pillow/QR rendering is unavailable in this launcher environment. "
++             "On NixOS, activate the current BedrockOnLinux package before "
++             "retrying the sign-in dialog.")
+     cr_ok = deps.have("cryptography")
+     print(f"  {'cryptography':12} : "
+           f"{'OK (login)' if cr_ok else 'MANQUANT (login)'}")
+@@ -118,8 +138,8 @@
+         warn(sync_problem)
+     if miss:
+         warn("To install: " + hint.format(" ".join(sorted(set(miss)))))
+         return False
+-    if gpu_problem:
++    if gpu_problem or not qr_ok:
+         return False
+     ok("System ready.")
+     return True
+diff --git a/bol/prefix.py b/bol/prefix.py
+--- a/bol/prefix.py
++++ b/bol/prefix.py
+@@ -776,6 +776,12 @@
+ def headless_setup_env(env, native_cryptbase=False):
+     """Prevent non-graphical Wine setup helpers from initialising a GPU."""
+     result = dict(env)
++    # UMU promotes inherited LD_LIBRARY_PATH into STEAM_RUNTIME_LIBRARY_PATH.
++    # The prefix bootstrap is deliberately headless and must not feed the
++    # desktop's development libraries into pressure-vessel's libc boundary.
++    # Keep the normal graphics environment intact for the actual game launch.
++    result.pop("LD_LIBRARY_PATH", None)
++    result.pop("STEAM_RUNTIME_LIBRARY_PATH", None)
+     result.pop("DISPLAY", None)
+     result.pop("WAYLAND_DISPLAY", None)
+     result.pop("XAUTHORITY", None)
