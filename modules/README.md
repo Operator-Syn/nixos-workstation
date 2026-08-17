@@ -16,6 +16,7 @@ modules/
     |-- development/      Distrobox and system-level development support
     |-- hardware/         Bluetooth and reusable hardware-related modules
     |-- users/             system user declarations
+    |-- bedrock-on-linux/  BedrockOnLinux launcher package and NixOS module
     |-- netbird.nix       NetBird VPN client
     |-- ollama.nix        optional local Ollama service
     |-- kvm-manager.nix   KVM/libvirt and virt-manager
@@ -37,11 +38,12 @@ modules/
 | `development/` | Distrobox setup, declared mutable boxes, optional Python support, containers |
 | `hardware/` | Bluetooth and reusable ASUS hardware support |
 | `users/` | system users, shells, groups |
+| `bedrock-on-linux/` | BedrockOnLinux launcher package and NixOS module |
  | `netbird.nix` | NetBird VPN client |
 | `ollama.nix` | optional local Ollama service; currently not enabled by Hiraeth |
 | `openssh.nix` | OpenSSH server with password and root login disabled |
 | `packages.nix` | system-wide packages |
-| `scripts.nix` | `rebuild`, `update-system`, `update-hardware`, `nvrun`, `getGPU` |
+| `scripts.nix` | `rebuild`, `update-system`, `update-codex`, `update-hardware`, `wifi-hotspot`, `nvrun`, `getGPU` |
 | `steam.nix` and `steam/` | Steam, GameMode, gamescope, launchers, and Protontricks support |
 | `kvm-manager.nix` | KVM/libvirt services, default network startup, and virt-manager |
 | `virtualisation.nix` | Docker service |
@@ -95,6 +97,13 @@ The Distrobox base module and individual box declarations are kept separate so i
 - Prefer imports over giant files.
 - Avoid putting personal desktop settings in system modules.
 - Avoid putting host-only values such as GPU bus IDs in reusable modules.
+
+`wifi-hotspot` discovers a Wi-Fi adapter with AP support, prompts for the
+SSID and password, and lets NetworkManager choose a compatible band and channel.
+It uses an active Ethernet connection for internet sharing and accepts optional
+interface, SSID, and connection-name arguments: `wifi-hotspot [interface] [ssid]
+[connection-name]`. Existing profiles with the chosen name are repaired to AP
+mode when possible.
 
 ## Hiraeth ASUS Controls
 
