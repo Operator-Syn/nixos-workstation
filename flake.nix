@@ -8,6 +8,11 @@
 
     nixpkgs-unstable.url = "github:nixos/nixpkgs/nixos-unstable";
 
+    bedrock-on-linux = {
+      url = "github:Wyze3306/BedrockOnLinux";
+      flake = false;
+    };
+
     home-manager = {
       url = "github:nix-community/home-manager/release-25.11";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -28,7 +33,6 @@
       url = "github:ezKEa/aagl-gtk-on-nix/release-25.11";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-
   };
 
   outputs = {
@@ -48,12 +52,16 @@
       inherit system;
       config.allowUnfree = true;
     };
+
+    bedrockOnLinux = pkgsUnstable.callPackage ./modules/nixos/bedrock-on-linux/package.nix {
+      bedrockSource = inputs."bedrock-on-linux";
+    };
   in {
     nixosConfigurations.nixos = nixpkgs.lib.nixosSystem {
       inherit system;
 
       specialArgs = {
-        inherit inputs pkgsUnstable;
+        inherit inputs pkgsUnstable bedrockOnLinux;
       };
 
       modules = [
@@ -73,6 +81,8 @@
         }
       ];
     };
+
+    packages.${system}.bedrock-on-linux = bedrockOnLinux;
 
     devShells.${system} = import ./devshells {
       inherit pkgs;
