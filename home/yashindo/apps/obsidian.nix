@@ -1,5 +1,6 @@
 {
   config,
+  pkgs,
   lib,
   pkgsUnstable,
   ...
@@ -73,6 +74,19 @@ in {
       Type=Application
       Categories=Office;
       MimeType=x-scheme-handler/obsidian;
+    '';
+
+    # Obsidian CLI commands are handled by the running desktop application.
+    # Start it at login, iconified and omitted from the taskbar, so the CLI
+    # bridge is available without presenting an Obsidian window immediately.
+    xdg.configFile."autostart/obsidian.desktop".text = ''
+      [Desktop Entry]
+      Name=Obsidian background service
+      Exec=${lib.getExe' pkgs.kstart "kstart"} --iconify --skiptaskbar -- ${obsidianDesktop}/bin/obsidian-desktop
+      TryExec=${lib.getExe' pkgs.kstart "kstart"}
+      Type=Application
+      Categories=Office;
+      X-GNOME-Autostart-enabled=true
     '';
   };
 }
