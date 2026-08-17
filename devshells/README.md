@@ -35,6 +35,21 @@ Use a combined shell when dependencies overlap:
 nix develop ~/nix-config#python-playwright
 ```
 
+For Dalanpad's native Tauri dependencies, use Dalanpad's project-local flake
+from the Dalanpad repository:
+
+```sh
+cd /path/to/Dalanpad
+direnv allow
+nix develop .#dalanpad
+```
+
+Noninteractive commands can use the same environment directly:
+
+```sh
+nix develop .#dalanpad --command cargo check --manifest-path src-tauri/Cargo.toml
+```
+
 ## direnv Recipes
 
 For automatic activation in an npm project:
@@ -73,5 +88,6 @@ That means shells can be combined without copying long package lists everywhere.
 - Add shared groups when several shells need the same tools.
 - Add named shells for common project shapes.
 - Prefer `python-playwright` over asking each Python project to discover browser paths manually.
+- Keep Dalanpad's GTK/WebKitGTK native build shell in the Dalanpad repository rather than adding those development packages globally.
 - Prefer dev shells over adding project-specific tools to global Home Manager packages.
 - Use the Debian Distrobox for dirty dependency experiments that should persist outside a single project shell.
