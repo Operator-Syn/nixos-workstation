@@ -23,6 +23,22 @@
         "type": "github"
       }
     },
+    "bedrock-on-linux": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1786735459,
+        "narHash": "sha256-VSqggVIf2fruBE5ZdJdUVLsmV6oCw5teAHk9mHFAm7M=",
+        "owner": "Wyze3306",
+        "repo": "BedrockOnLinux",
+        "rev": "e3437c0f966a37f41e5905883048e7386082ac30",
+        "type": "github"
+      },
+      "original": {
+        "owner": "Wyze3306",
+        "repo": "BedrockOnLinux",
+        "type": "github"
+      }
+    },
     "flake-compat": {
       "flake": false,
       "locked": {
@@ -99,11 +115,11 @@
     },
     "nixpkgs-unstable": {
       "locked": {
-        "lastModified": 1786106723,
-        "narHash": "sha256-zDSUbpoeo/9ZmD2+wXnzxoo1+uhL8vxc0b8yuYMKYq0=",
+        "lastModified": 1786862985,
+        "narHash": "sha256-FBJRXmbGXiSUDvYEbfLYRkckayyZ6SK1UEqhCrIZ2Cs=",
         "owner": "nixos",
         "repo": "nixpkgs",
-        "rev": "f13ff45afd1bb73e640eaa08a7066dbed07e3238",
+        "rev": "e5bdc4a41d4c072fe1e3787eaa0320a384741d44",
         "type": "github"
       },
       "original": {
@@ -131,11 +147,11 @@
     },
     "nixpkgs_3": {
       "locked": {
-        "lastModified": 1786106723,
-        "narHash": "sha256-zDSUbpoeo/9ZmD2+wXnzxoo1+uhL8vxc0b8yuYMKYq0=",
+        "lastModified": 1786862985,
+        "narHash": "sha256-FBJRXmbGXiSUDvYEbfLYRkckayyZ6SK1UEqhCrIZ2Cs=",
         "owner": "nixos",
         "repo": "nixpkgs",
-        "rev": "f13ff45afd1bb73e640eaa08a7066dbed07e3238",
+        "rev": "e5bdc4a41d4c072fe1e3787eaa0320a384741d44",
         "type": "github"
       },
       "original": {
@@ -151,11 +167,11 @@
         "nixpkgs": "nixpkgs_3"
       },
       "locked": {
-        "lastModified": 1786257175,
-        "narHash": "sha256-RlOUshmw9UZb33NJGyLe/a3X8gl8ssraGZHOK4gfkEE=",
+        "lastModified": 1786939120,
+        "narHash": "sha256-zKJaN6pvBELrmQnWgHiMSaDnAsCeYTH5keJ9Eac/ZiU=",
         "owner": "nix-community",
         "repo": "NUR",
-        "rev": "99a56b0f4a2bc0cdead27d4673329f829bec30b8",
+        "rev": "1c85878299a5ef6bf8e069bc55b2f48dea2929a3",
         "type": "github"
       },
       "original": {
@@ -190,6 +206,7 @@
     "root": {
       "inputs": {
         "aagl": "aagl",
+        "bedrock-on-linux": "bedrock-on-linux",
         "home-manager": "home-manager",
         "nixpkgs": "nixpkgs_2",
         "nixpkgs-unstable": "nixpkgs-unstable",
@@ -223,11 +240,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1783174389,
-        "narHash": "sha256-aCWC8ngycU7OdJrU2+Je3qf+1a2ykuBvpPhZT/9tXMc=",
+        "lastModified": 1786629091,
+        "narHash": "sha256-gkig4nPi1CWc4Z50GBsjE4ygSE7hMpl/TwID2an2Cck=",
         "owner": "Mic92",
         "repo": "sops-nix",
-        "rev": "f1406619a3884cd5c47992a70b8b35c9c0fcb4c9",
+        "rev": "a8627b21b9107c5711c96b84f32a9a4b3d45295f",
         "type": "github"
       },
       "original": {
