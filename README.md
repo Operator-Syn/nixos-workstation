@@ -46,6 +46,7 @@ This repo is meant to be readable first: each folder owns one layer of the syste
 | Run the canonical rebuild workflow | `rb` |
 | Run the rebuild helper directly | `rebuild` |
 | Update flake inputs and rebuild | `update-system` |
+| Resolve and update the latest Codex CLI source | `update-codex` |
 | Refresh hardware configuration only | `uh` |
 | Direct low-level system switch | `sudo nixos-rebuild switch --flake ~/nix-config#nixos --cores "$(nproc)" --show-trace` |
 | Enter default dev shell | `nix develop ~/nix-config` |
@@ -59,6 +60,8 @@ This repo is meant to be readable first: each folder owns one layer of the syste
 | Enter Debian Distrobox | `distrobox enter debian-dev` |
 
 `rb` is the canonical Fish alias for the system-wide `rebuild` helper. It refreshes the hardware configuration and activates the NixOS generation. Use `rebuild` directly from another shell, `update-system` to update flake inputs before rebuilding, or `uh`/`update-hardware` when only the hardware scan is needed. The direct `nixos-rebuild` command above is a low-level fallback that bypasses the custom hardware refresh. Activation is still user-owned and should be followed by live checks such as `systemctl --failed` and `docker ps`.
+
+`update-codex` resolves the latest stable OpenAI Codex CLI archive from npm, updates only its Nix version and SRI hash, and does not activate or commit the change. Review the resulting diff before running `rebuild`.
 
 ## How The Layers Fit
 
@@ -110,7 +113,7 @@ Graphify is for discovery only. It must not be used to mutate Nix source, ACLs, 
 
 ## Development Environments
 
-Project language runtimes live in `devshells/`. Use `nix develop ~/nix-config#node` for Node/npm/pnpm/bun projects and `nix develop ~/nix-config#python` for Python projects.
+Project language runtimes and native build dependencies live in `devshells/`. Use `nix develop ~/nix-config#node` for Node/npm/pnpm/bun projects and `nix develop ~/nix-config#python` for Python projects. Dalanpad owns its Tauri/GTK/WebKitGTK project shell in the Dalanpad repository; use `direnv allow` or `nix develop .#dalanpad` from that checkout.
 
 For messy experiments that should behave more like a small mutable VM, `hiraeth` enables a Docker-backed Distrobox setup. The Debian box is declared in `modules/nixos/development/distrobox-debian-dev.nix`, but it is created manually so rebuilds do not wipe or recreate it:
 
