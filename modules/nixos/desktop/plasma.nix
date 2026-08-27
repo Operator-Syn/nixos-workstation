@@ -37,23 +37,36 @@
 
       wireplumber.extraConfig."51-hiraeth-audio-routing" = {
         "wireplumber.settings" = {
-          # Keep Bluetooth earbuds in playback mode when Discord uses the
+          # Keep Bluetooth playback devices in A2DP mode when Discord uses the
           # separate external microphone.
           "bluetooth.autoswitch-to-headset-profile" = false;
           "device.restore-profile" = false;
         };
 
+        # Hiraeth has a separate external microphone. Avoid HFP/HSP and AAC
+        # renegotiation, which can make Bluetooth playback transports flap
+        # when audio is paused and resumed.
+        "monitor.bluez.properties" = {
+          "bluez5.roles" = [
+            "a2dp_sink"
+            "a2dp_source"
+          ];
+          "bluez5.codecs" = [
+            "sbc"
+          ];
+        };
+
         "device.profile.priority.rules" = [
           {
             matches = [
-              {"device.name" = "bluez_card.41_42_FF_40_94_73";}
+              {"device.name" = "~bluez_card.*";}
             ];
             actions = {
               "update-props" = {
                 priorities = [
-                  "a2dp-sink"
-                  "a2dp-sink-sbc_xq"
                   "a2dp-sink-sbc"
+                  "a2dp-sink-sbc_xq"
+                  "a2dp-sink"
                 ];
               };
             };
@@ -63,11 +76,12 @@
         "monitor.bluez.rules" = [
           {
             matches = [
-              {"node.name" = "bluez_output.41_42_FF_40_94_73.1";}
+              {"node.name" = "~bluez_output.*";}
             ];
             actions = {
               "update-props" = {
                 "priority.session" = 2000;
+                "session.suspend-timeout-seconds" = 0;
               };
             };
           }
