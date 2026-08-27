@@ -33,7 +33,7 @@ modules/
 
 | Area | Owns |
 | --- | --- |
-| `core/` | Nix settings, locale, sudo, polkit, zram |
+| `core/` | Nix settings, locale, sudo, polkit, zram, user-slice OOM protection |
 | `desktop/` | Plasma 6, SDDM, PipeWire, printing, XKB |
 | `development/` | Distrobox setup, declared mutable boxes, optional Python support, containers |
 | `hardware/` | Bluetooth and reusable ASUS hardware support |
@@ -87,7 +87,7 @@ Always keep the option name close to the feature it controls.
 | `development/distrobox.nix` | Distrobox package and Docker backend selection |
 | `development/distrobox-debian-dev.nix` | `debian-dev` assemble manifest and helper command |
 | `development/debian-container.nix` | Previous Docker-managed Debian container module, currently not imported by `hiraeth` |
-| `development/python-shell.nix` | Optional system-level Python shell support, enabled on `hiraeth` |
+| `development/python-shell.nix` | Optional system-level Python support, enabled on `hiraeth`; Playwright native runtime variables remain scoped to dev shells |
 
 The Distrobox base module and individual box declarations are kept separate so installing Distrobox is not coupled to creating a specific mutable development box.
 
