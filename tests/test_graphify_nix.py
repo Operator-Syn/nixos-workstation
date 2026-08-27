@@ -91,6 +91,7 @@ class GraphifyNixAdapterTests(unittest.TestCase):
             "plasma-manager",
             "sops-nix",
             "aagl",
+            "bedrock-on-linux",
         }
         actual = {
             link["target"].removeprefix("nix_input_")
