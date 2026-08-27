@@ -19,6 +19,10 @@ const deniedDirectories = new Set([".git", "node_modules"]);
 const operations = new Map<string, Operation>();
 const workingTreeOperations = new Map<string, WorkingTreeOperation>();
 const maxFileBytes = 512 * 1024;
+const maxOperationPaths = 128;
+const maxOperationBytes = 8 * 1024 * 1024;
+const maxStoredOperations = 16;
+const operationTtlMs = 30 * 60 * 1000;
 
 type Change = {
   path: string;
@@ -54,6 +58,34 @@ const changeSchema = z.object({
   path: z.string().min(1),
   content: z.string().nullable(),
 });
+
+function pruneOperationStore<T extends {createdAt: string}>(store: Map<string, T>, now = Date.now()) {
+  const cutoff = now - operationTtlMs;
+  for (const [id, operation] of store) {
+    const createdAt = Date.parse(operation.createdAt);
+    if (!Number.isFinite(createdAt) || createdAt < cutoff) store.delete(id);
+  }
+}
+
+function storeOperation<T extends {id: string; createdAt: string}>(store: Map<string, T>, operation: T) {
+  pruneOperationStore(store);
+  while (store.size >= maxStoredOperations) {
+    const oldest = store.keys().next().value;
+    if (oldest === undefined) break;
+    store.delete(oldest);
+  }
+  store.set(operation.id, operation);
+}
+
+function storedChangeBytes(change: Pick<Change, "before" | "after">) {
+  return Buffer.byteLength(change.before ?? "", "utf8") + Buffer.byteLength(change.after ?? "", "utf8");
+}
+
+function assertOperationBudget(changes: Change[]) {
+  if (changes.length > maxOperationPaths) fail(`An operation may contain at most ${maxOperationPaths} paths.`);
+  const bytes = changes.reduce((total, change) => total + storedChangeBytes(change), 0);
+  if (bytes > maxOperationBytes) fail(`An operation may retain at most ${maxOperationBytes} bytes of file content.`);
+}
 
 function text(value: unknown) {
   return typeof value === "string" ? value : JSON.stringify(value, null, 2);
@@ -144,7 +176,9 @@ async function snapshotChanges(workspace: string, paths: string[]): Promise<Chan
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     }
     if (before !== after) {
-      changes.push({path: relativePath, beforeHash: digest(before), before, afterHash: digest(after), after});
+      const change = {path: relativePath, beforeHash: digest(before), before, afterHash: digest(after), after};
+      assertOperationBudget([...changes, change]);
+      changes.push(change);
     }
   }
   return changes;
@@ -334,16 +368,25 @@ async function workingTreeDiff(paths: string[]): Promise<string> {
   }
 
   const diffs: string[] = [];
+  let diffBytes = 0;
   if (tracked.length > 0) {
     const trackedDiff = runAllowed("git", ["diff", "--no-ext-diff", "--binary", "--full-index", "HEAD", "--", ...tracked], repoRoot);
     if (trackedDiff.status !== 0) fail(trackedDiff.stderr || "Could not create the working-tree diff.");
-    if (trackedDiff.stdout) diffs.push(trackedDiff.stdout);
+    if (trackedDiff.stdout) {
+      diffBytes += Buffer.byteLength(trackedDiff.stdout, "utf8");
+      if (diffBytes > maxOperationBytes) fail(`The working-tree diff exceeds the ${maxOperationBytes}-byte operation budget.`);
+      diffs.push(trackedDiff.stdout);
+    }
   }
   for (const path of untracked) {
     const target = await safePath(path, false, true);
     const untrackedDiff = runAllowed("git", ["diff", "--no-index", "--binary", "--", "/dev/null", target.absolute], repoRoot);
     if (untrackedDiff.status !== 0 && untrackedDiff.status !== 1) fail(untrackedDiff.stderr || `Could not diff ${path}.`);
-    if (untrackedDiff.stdout) diffs.push(untrackedDiff.stdout);
+    if (untrackedDiff.stdout) {
+      diffBytes += Buffer.byteLength(untrackedDiff.stdout, "utf8");
+      if (diffBytes > maxOperationBytes) fail(`The working-tree diff exceeds the ${maxOperationBytes}-byte operation budget.`);
+      diffs.push(untrackedDiff.stdout);
+    }
   }
   return diffs.join("\n");
 }
@@ -352,6 +395,7 @@ async function captureWorkingTreeSnapshot(): Promise<WorkingTreeSnapshot> {
   const status = runAllowed("git", ["status", "--porcelain=v1", "-z", "--no-renames", "--untracked-files=all"], repoRoot);
   if (status.status !== 0) fail(status.stderr || "Could not inspect the working tree.");
   const paths = workingTreePaths(status.stdout, true);
+  if (paths.length > maxOperationPaths) fail(`The working-tree operation may contain at most ${maxOperationPaths} paths.`);
   const contentHashes = await Promise.all(paths.map(async (path) => {
     await safePath(path, false, true);
     return {path, hash: digest(await readSafeFile(path, true))};
@@ -384,11 +428,12 @@ async function createWorkingTreeOperation(): Promise<WorkingTreeOperation> {
     createdAt: new Date().toISOString(),
     snapshot,
   };
-  workingTreeOperations.set(operation.id, operation);
+  storeOperation(workingTreeOperations, operation);
   return operation;
 }
 
 function getWorkingTreeOperation(id: string, approvalHash: string): WorkingTreeOperation {
+  pruneOperationStore(workingTreeOperations);
   const operation = workingTreeOperations.get(id);
   if (!operation || operation.hash !== approvalHash) fail("The working-tree operation ID or approval hash is invalid or stale.");
   return operation;
@@ -406,6 +451,7 @@ function validCommitMessage(message: string) {
 
 function createOperation(kind: string, changes: Change[]): Operation {
   if (changes.length === 0) fail("The proposed operation produces no changes.");
+  assertOperationBudget(changes);
   const operation: Operation = {
     id: randomUUID(),
     hash: operationHash(kind, changes),
@@ -413,7 +459,7 @@ function createOperation(kind: string, changes: Change[]): Operation {
     createdAt: new Date().toISOString(),
     changes,
   };
-  operations.set(operation.id, operation);
+  storeOperation(operations, operation);
   return operation;
 }
 
@@ -425,6 +471,7 @@ async function ensureOperationCurrent(operation: Operation) {
 }
 
 function getOperation(id: string, approvalHash: string): Operation {
+  pruneOperationStore(operations);
   const operation = operations.get(id);
   if (!operation || operation.hash !== approvalHash) fail("The operation ID or approval hash is invalid or stale.");
   return operation;
@@ -531,9 +578,12 @@ server.tool("git_commit_working_tree", "Commit the reviewed working tree one fil
   }
 
   const afterStatus = runAllowed("git", ["status", "--short", "--untracked-files=all"], repoRoot);
+  const ok = results.length === requestedPaths.length && results.every((commit) => commit.status === 0);
+  const partial = results.some((commit) => commit.status === 0) && results.length < requestedPaths.length;
+  if (ok) workingTreeOperations.delete(operationId);
   return result({
-    ok: results.length === requestedPaths.length && results.every((commit) => commit.status === 0),
-    partial: results.some((commit) => commit.status === 0) && results.length < requestedPaths.length,
+    ok,
+    partial,
     operationId,
     approvalHash,
     fileCount: requestedPaths.length,
@@ -544,7 +594,8 @@ server.tool("git_commit_working_tree", "Commit the reviewed working tree one fil
 });
 
 server.tool("prepare_patch", "Prepare exact file contents against the current checkout without modifying it; the returned operation requires approval before application.", {changes: z.array(changeSchema).min(1)}, async ({changes}) => {
-  const normalized = [] as string[];
+  if (changes.length > maxOperationPaths) fail(`A patch may contain at most ${maxOperationPaths} paths.`);
+  const preparedChanges: Change[] = [];
   const seen = new Set<string>();
   for (const change of changes) {
     const path = safeRelativePath(change.path);
@@ -553,22 +604,11 @@ server.tool("prepare_patch", "Prepare exact file contents against the current ch
     if (change.content !== null && Buffer.byteLength(change.content, "utf8") > maxFileBytes) fail(`The proposed file is too large: ${path}`);
     const before = await readSafeFile(path);
     if (change.content === null && before === null) fail(`Cannot delete a file that does not exist: ${path}`);
-    normalized.push(path);
+    preparedChanges.push({path, beforeHash: digest(before), before, afterHash: digest(change.content), after: change.content});
+    assertOperationBudget(preparedChanges);
   }
-  const operation = createOperation("patch", changes.map((change, index) => {
-    const path = normalized[index];
-    const before = null;
-    return {path, beforeHash: digest(before), before, afterHash: digest(change.content), after: change.content};
-  }));
-  for (const change of operation.changes) {
-    const before = await readSafeFile(change.path);
-    change.before = before;
-    change.beforeHash = digest(before);
-  }
-  const effectiveChanges = operation.changes.filter((change) => change.beforeHash !== change.afterHash);
-  if (effectiveChanges.length !== operation.changes.length) fail("The proposed patch contains no-op changes.");
-  operation.hash = operationHash(operation.kind, operation.changes);
-  operations.set(operation.id, operation);
+  if (preparedChanges.some((change) => change.beforeHash === change.afterHash)) fail("The proposed patch contains no-op changes.");
+  const operation = createOperation("patch", preparedChanges);
   return result({...operationSummary(operation), diff: operation.changes.map(unifiedDiff).join("\n")});
 });
 
@@ -578,7 +618,7 @@ server.tool("prepare_format", "Run the flake formatter in a temporary isolated w
     const formatted = runAllowed("nix", ["fmt", "."], workspace, 120_000);
     if (formatted.status !== 0) return result(formatted);
     const allPaths = runAllowed("git", ["ls-files", "--cached", "--others", "--exclude-standard", "--", "*.nix"], repoRoot).stdout.split("\n").filter(Boolean);
-    const selected = paths.length ? paths.map(safeRelativePath) : allPaths;
+    const selected = paths.length ? paths.map((path) => safeRelativePath(path)) : allPaths;
     const changes = await snapshotChanges(workspace, selected);
     if (changes.length === 0) return result({message: "Formatting produced no changes.", command: formatted.command});
     const operation = createOperation("format", changes);
@@ -674,9 +714,12 @@ server.tool("git_commit_files", "After review, create explicitly approved one-fi
     results.push({path, ...commitResult});
     if (commitResult.status !== 0) break;
   }
+  const ok = results.length === normalizedCommits.length && results.every((commit) => commit.status === 0);
+  const partial = results.some((commit) => commit.status === 0) && results.length < normalizedCommits.length;
+  if (ok) operations.delete(operationId);
   return result({
-    ok: results.length === normalizedCommits.length && results.every((commit) => commit.status === 0),
-    partial: results.some((commit) => commit.status === 0) && results.length < normalizedCommits.length,
+    ok,
+    partial,
     beforeStatus: status,
     commits: results,
     afterStatus: runAllowed("git", ["status", "--short", "--untracked-files=all"], repoRoot),
