@@ -36,6 +36,14 @@ home/
 | Desktop preferences | Plasma panels, colors, wallpaper, icons |
 | User services | app-level user services and autostart entries |
 
+VS Code user settings, language-specific formatters, Nix language-server
+configuration, terminal defaults, and trusted schema domains are declared in
+`home/yashindo/apps/vscode.nix`. By default, the declared settings seed a
+writable `~/.config/Code/User/settings.json`; imperative edits are retained
+and take precedence over declarative defaults. Set
+`modules.vscode.mutableUserSettings = false` for a fully Home Manager-managed
+(read-only) settings file.
+
 General-purpose language runtimes such as Node and Python should usually stay out of `home/yashindo/packages.nix`. Prefer `devshells/` for project-scoped tooling and Distrobox for mutable dependency experiments.
 
 The Obsidian module keeps the desktop launcher separate from Obsidian's native
