@@ -50,8 +50,9 @@ in {
     ];
 
     environment.variables = {
-      # PIPENV_VENV_IN_PROJECT = "1";
-      LD_LIBRARY_PATH = lib.makeLibraryPath config.programs.nix-ld.libraries;
+      # Native browser libraries and GStreamer plugins are supplied by the
+      # project-scoped `python-playwright` dev shell. Keep only the browser
+      # bundle location globally available for projects that opt into it.
       PLAYWRIGHT_BROWSERS_PATH = "${pkgs.playwright-driver.browsers}";
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1";
     };
