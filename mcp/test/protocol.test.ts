@@ -176,12 +176,12 @@ describe("MCP stdio workflow", () => {
       arguments: {
         operationId: operation.operationId,
         approvalHash: operation.approvalHash,
-        commits: operation.paths.map((path) => ({path, message: `Commit ${path}.`})),
+        commits: operation.paths.map((path: string) => ({path, message: `Commit ${path}.`})),
       },
     });
     expect(committed.result?.isError).not.toBe(true);
     const result = JSON.parse(committed.result?.content?.[0]?.text ?? "{}");
-    expect(result.commits.every((c) => c.status === 0)).toBe(true);
+    expect(result.commits.every((c: {status: number}) => c.status === 0)).toBe(true);
     expect(result.afterStatus.stdout.trim()).toBe("");
     expect(result.fileCount).toBe(3);
     expect(runGit(repository, ["rev-list", "--count", "HEAD"]).stdout.trim()).toBe("4");
@@ -210,15 +210,15 @@ describe("MCP stdio workflow", () => {
       arguments: {
         operationId: operation.operationId,
         approvalHash: operation.approvalHash,
-        commits: operation.paths.map((path) => ({path, message: `Commit ${path}.`})),
+        commits: operation.paths.map((path: string) => ({path, message: `Commit ${path}.`})),
       },
     });
     expect(committed.result?.isError).not.toBe(true);
     const result = JSON.parse(committed.result?.content?.[0]?.text ?? "{}");
-    expect(result.commits.every((c) => c.status === 0)).toBe(true);
+    expect(result.commits.every((c: {status: number}) => c.status === 0)).toBe(true);
     expect(result.fileCount).toBe(3);
     expect(runGit(repository, ["rev-list", "--count", "HEAD"]).stdout.trim()).toBe("4");
-    expect(JSON.parse(committed.result.content[0].text).afterStatus.stdout.trim()).toBe("");
+    expect(result.afterStatus.stdout.trim()).toBe("");
   });
 
   test("rejects a protected dirty path such as a private key instead of hiding it from review", async () => {
@@ -320,7 +320,7 @@ describe("MCP stdio workflow", () => {
       arguments: {
         operationId: operation.operationId,
         approvalHash: operation.approvalHash,
-        commits: operation.paths.slice(0, 1).map((path) => ({path, message: `Commit ${path}.`})),
+        commits: operation.paths.slice(0, 1).map((path: string) => ({path, message: `Commit ${path}.`})),
       },
     });
     expect(partial.result?.isError).toBe(true);
@@ -330,7 +330,7 @@ describe("MCP stdio workflow", () => {
       arguments: {
         operationId: operation.operationId,
         approvalHash: operation.approvalHash,
-        commits: operation.paths.map((path) => ({path, message: `Commit ${path}.`})),
+        commits: operation.paths.map((path: string) => ({path, message: `Commit ${path}.`})),
       },
     });
     expect(full.result?.isError).not.toBe(true);
@@ -357,7 +357,7 @@ describe("MCP stdio workflow", () => {
       arguments: {
         operationId: operation.operationId,
         approvalHash: operation.approvalHash,
-        commits: operation.paths.map((path) => ({path, message: `Commit ${path}.`})),
+        commits: operation.paths.map((path: string) => ({path, message: `Commit ${path}.`})),
       },
     });
     expect(committed.result?.isError).toBe(true);
@@ -436,5 +436,56 @@ describe("MCP stdio workflow", () => {
     expect(committed.result?.isError).toBe(true);
     expect(runGit(repository, ["rev-list", "--count", "HEAD"]).stdout.trim()).toBe("1");
     expect(runGit(repository, ["diff", "--cached", "--name-only"]).stdout.trim()).toBe("");
+  });
+
+  test("evicts old prepared operations instead of retaining them indefinitely", async () => {
+    const server = await startServer();
+    await server.call(1, "initialize", {
+      protocolVersion: "2025-06-18",
+      capabilities: {},
+      clientInfo: {name: "test", version: "1"},
+    });
+
+    let firstOperation: {operationId: string; approvalHash: string} | undefined;
+    for (let index = 0; index < 20; index += 1) {
+      const prepared = await server.call(10 + index, "tools/call", {
+        name: "prepare_patch",
+        arguments: {changes: [{path: `future-${index}.txt`, content: `prepared ${index}\n`}]},
+      });
+      expect(prepared.result?.isError).not.toBe(true);
+      const operation = JSON.parse(prepared.result?.content?.[0]?.text ?? "{}");
+      if (index === 0) firstOperation = operation;
+    }
+
+    const evicted = await server.call(40, "tools/call", {
+      name: "apply_approved_patch",
+      arguments: firstOperation,
+    });
+    expect(evicted.result?.isError).toBe(true);
+  });
+
+  test("rejects oversized prepared operations before retaining their contents", async () => {
+    const server = await startServer();
+    await server.call(1, "initialize", {
+      protocolVersion: "2025-06-18",
+      capabilities: {},
+      clientInfo: {name: "test", version: "1"},
+    });
+
+    const tooManyPaths = await server.call(2, "tools/call", {
+      name: "prepare_patch",
+      arguments: {
+        changes: Array.from({length: 129}, (_, index) => ({path: `too-many-${index}.txt`, content: "content\n"})),
+      },
+    });
+    expect(tooManyPaths.result?.isError).toBe(true);
+
+    const tooMuchContent = await server.call(3, "tools/call", {
+      name: "prepare_patch",
+      arguments: {
+        changes: Array.from({length: 17}, (_, index) => ({path: `too-large-${index}.txt`, content: "x".repeat(512 * 1024)})),
+      },
+    });
+    expect(tooMuchContent.result?.isError).toBe(true);
   });
 });
