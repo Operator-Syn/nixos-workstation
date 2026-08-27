@@ -2,7 +2,7 @@
 
 Reusable project environments exposed through `flake.nix` as `devShells`.
 
-These shells let projects opt into the tools they need without making the whole system carry every language runtime, compiler, browser bundle, or CUDA package globally.
+These shells let projects opt into the tools they need without making the whole system carry every language runtime, compiler, browser bundle, or CUDA package globally. Hiraeth keeps the Playwright browser bundle discoverable for system Python projects, while native library and GStreamer variables are scoped to the Playwright dev shells.
 
 ---
 
@@ -80,6 +80,8 @@ pythonPackages
 nodePackages
 playwrightEnv
 ```
+
+`playwrightEnv` provides the native library path, GStreamer plugin path, and Playwright browser path used by both Playwright shells.
 
 That means shells can be combined without copying long package lists everywhere.
 
