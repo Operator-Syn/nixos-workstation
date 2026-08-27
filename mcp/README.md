@@ -55,6 +55,11 @@ Prepare tools return an operation ID, approval hash, file hashes, and a diff.
 `prepare_patch` compares against the current checkout directly; formatting and
 lock updates use temporary isolated workspaces. Applying a patch requires the
 exact operation ID and approval hash, and rechecks targeted files before writing.
+Prepared operations retain bounded file content only: at most 128 paths and 8
+MiB of stored content per operation. The server keeps at most 16 operations of
+each kind, expires stale operations after 30 minutes, and removes an operation
+after its approved commit completes. A rejected or partial operation remains
+available for retry until it expires.
 
 The commit tools operate after a prepared operation has been applied, except for
 `prepare_working_tree_commit` and `git_commit_working_tree`. The latter pair is
