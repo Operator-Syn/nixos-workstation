@@ -3,7 +3,7 @@
 This directory owns the Nix package and NixOS module for
 [BedrockOnLinux](https://github.com/Wyze3306/BedrockOnLinux).
 
-The package contains the upstream Python/Tk launcher, its Python dependencies,
+The package contains the upstream `v2.2.4` Python/Qt launcher, its Python dependencies,
 the desktop entry, and icon. It does not put the Minecraft game,
 WineGDK/Proton, or UMU in the Nix store. On first use, the launcher downloads
 and verifies the Windows game and its runtime into the per-user BedrockOnLinux
@@ -38,8 +38,8 @@ readlink -f "$(command -v bedrock-on-linux)"
 bedrock-on-linux doctor
 ```
 
-The `doctor` output must show `pillow/QR : OK (GUI)`. If it reports the old
-environment or `PIL` is missing, the new generation has not been activated.
+The `doctor` output must show `PySide6 : OK (GUI)`. If it reports the old
+environment or a missing Qt toolkit, the new generation has not been activated.
 
 ## First run
 
@@ -54,6 +54,7 @@ usual command flow is:
 
 ```sh
 bedrock-on-linux doctor
+bedrock-on-linux store-login
 bedrock-on-linux versions
 bedrock-on-linux setup
 bedrock-on-linux login
@@ -65,10 +66,8 @@ Keep worlds backed up before changing or repairing a game installation.
 
 ### Microsoft device-code sign-in
 
-When the launcher shows the sign-in dialog, the QR code is generated locally
-by the launcher. Scan it with a phone, or select **Open Microsoft sign-in
-page** and enter the displayed code. If the browser button is unavailable, open
-the Microsoft device-code page directly at:
+When the launcher shows the sign-in dialog, select **Open Microsoft sign-in
+page**, or open the Microsoft device-code page directly at:
 
 ```text
 https://www.microsoft.com/link
@@ -81,12 +80,12 @@ code, not a missing Python module. Close or cancel the dialog, wait for the
 Microsoft cooldown, and start one fresh sign-in flow. Repeatedly submitting the
 same code can extend the cooldown.
 
-The Nix package includes Pillow, which the launcher needs to render that QR
-code. Its build check and `doctor` check import Tk, CustomTkinter, Pillow, and
-the bundled QR encoder. `PIL: missing — ModuleNotFoundError` therefore means
-the active system generation is stale or a different launcher is being run;
-build and activate the updated generation, then confirm the executable path
-before testing sign-in again.
+The Nix package includes PySide6, which the launcher uses for its Qt interface.
+Its build check imports the Qt core and widget modules, and `doctor` reports
+whether the toolkit is usable. A missing `PySide6` therefore means the active
+system generation is stale or a different launcher is being run; build and
+activate the updated generation, then confirm the executable path before
+testing sign-in again.
 
 ## Runtime requirements and GPU notes
 
@@ -94,7 +93,9 @@ The upstream runtime currently targets x86-64 Linux, X11/XWayland, and a Vulkan
 1.3-capable GPU with the required device-generated-commands extension. Hiraeth's
 existing Steam and graphics modules provide the normal desktop prerequisites.
 
-The default path is X11/XWayland. Wayland input can be tested with:
+The Nix-packaged Qt launcher sets `QT_QPA_PLATFORM=xcb` for its own modal
+dialogs, avoiding a Qt Wayland crash in this environment. This is separate from
+the game's Wayland input setting, which can be tested with:
 
 ```sh
 BOL_INPUT=wayland bedrock-on-linux gui
@@ -137,8 +138,9 @@ package manager; that is expected for a read-only Nix installation.
 
 ## Updating the launcher
 
-The flake tracks the upstream repository as a source-only input. It can be
-updated without pinning the package to a hand-written version:
+The flake pins the source-only input to the upstream `v2.2.4` release. To
+move to a later release, update the tag in `flake.nix`, then refresh and check
+the lockfile:
 
 ```sh
 nix flake update bedrock-on-linux --flake ~/nix-config
