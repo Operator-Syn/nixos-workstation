@@ -1,7 +1,8 @@
 diff --git a/bol/auth.py b/bol/auth.py
+index 7807434..cf20454 100644
 --- a/bol/auth.py
 +++ b/bol/auth.py
-@@ -133,7 +133,7 @@
+@@ -133,7 +133,7 @@ class NativeAuth:
      def signed_in(self):
          return msa_signed_in()
  
@@ -10,7 +11,7 @@ diff --git a/bol/auth.py b/bol/auth.py
          if msa_signed_in():
              if on_online:
                  on_online()
-@@ -145,10 +145,10 @@
+@@ -145,10 +145,10 @@ class NativeAuth:
          # while this exact generation is still current.
          account_epoch = _account_cache_epoch(DATA / "winegdk-preauth")
          threading.Thread(target=self._flow,
@@ -23,18 +24,7 @@ diff --git a/bol/auth.py b/bol/auth.py
          try:
              if account_epoch is None:
                  account_epoch = _account_cache_epoch(
-@@ -161,8 +161,9 @@
-                     f"{d.get('error_description') or d.get('error') or d}")
-             url = d.get("verification_uri") or "https://www.microsoft.com/link"
-             code = d.get("user_code")
-+            complete_url = d.get("verification_uri_complete")
-             if on_auth:
--                on_auth(url, code)
-+                on_auth(url, code, complete_url)
-             info(f"Microsoft sign-in → {url} code {code}")
-             interval = max(int(d.get("interval", 5) or 5), 1)
-             deadline = time.time() + int(d.get("expires_in", 900) or 900)
-@@ -184,8 +185,17 @@
+@@ -184,8 +184,17 @@ class NativeAuth:
                      interval += 5
                      continue
                  if e:
@@ -54,7 +44,7 @@ diff --git a/bol/auth.py b/bol/auth.py
                  if t.get("refresh_token"):
                      token = {"refresh_token": t["refresh_token"],
                               "obtained": int(time.time())}
-@@ -201,11 +211,27 @@
+@@ -201,11 +210,27 @@ class NativeAuth:
                      ok("Microsoft account linked (in-game login)")
                      return
              if not self._stop:
@@ -86,72 +76,57 @@ diff --git a/bol/auth.py b/bol/auth.py
  
      def stop(self):
          self._stop = True
-
 diff --git a/bol/gui.py b/bol/gui.py
+index 9b53770..96efcbd 100644
 --- a/bol/gui.py
 +++ b/bol/gui.py
-@@ -1500,7 +1500,7 @@
-         else:
-             acct_btn._mode = "auth_loading"
-             acct_btn.configure(text="Loading…")
--            threading.Thread(target=lambda: na.start(on_auth, on_online),
-+            threading.Thread(target=lambda: na.start(on_auth, on_online, on_error),
-                               daemon=True).start()
+@@ -537,6 +537,7 @@ class AuthBridge(QObject):
+     gets the callback to run.
+     """
+     auth = Signal(str, str)
++    error = Signal(str)
+     online = Signal()
+     refreshed = Signal()
  
-     def _cancel_signout(e):
-@@ -1518,8 +1518,8 @@
-                 acct_btn.configure(text="Cancel", fg_color=T.CARD_2, hover_color=T.CARD_3, text_color=T.FG)
-     root.bind_all("<Button-1>", _cancel_signout, add="+")
+@@ -1036,6 +1037,7 @@ class MainWindow(QMainWindow):
+         # safely no matter which thread emits them.
+         self._auth_bridge = AuthBridge()
+         self._auth_bridge.auth.connect(self._on_auth)
++        self._auth_bridge.error.connect(self._on_auth_error)
+         self._auth_bridge.online.connect(self._on_online)
+         self._auth_bridge.refreshed.connect(self._on_refreshed)
  
--    def on_auth(url, code):
--        root.after(0, lambda: (acct_state("auth"), code_dialog(url, code)))
-+    def on_auth(url, code, complete_url=None):
-+        root.after(0, lambda: (acct_state("auth"), code_dialog(url, code, complete_url)))
+@@ -1769,7 +1771,8 @@ class MainWindow(QMainWindow):
+             threading.Thread(
+                 target=lambda: self.na.start(
+                     self._auth_bridge.auth.emit,
+-                    self._auth_bridge.online.emit),
++                    self._auth_bridge.online.emit,
++                    self._auth_bridge.error.emit),
+                 daemon=True).start()
  
-     def on_online():
-         root.after(0, lambda: acct_state("in"))
-@@ -1540,8 +1540,17 @@
-                 pass
-         threading.Thread(target=_bg_fetch, daemon=True).start()
+     # ---------------------------------------------------------- download account
+@@ -1880,6 +1883,14 @@ class MainWindow(QMainWindow):
+         self._refresh_account_row("auth")
+         self._code_dialog(url, code)
  
--    def code_dialog(url, code):
--        url = f"https://login.live.com/oauth20_remoteconnect.srf?otc={code}"
-+    def on_error(message):
-+        def finish():
-+            _desktop_error(message)
-+            if ui.get("auth_dialog") and ui["auth_dialog"].winfo_exists():
-+                ui["auth_dialog"].destroy()
-+            acct_state("in" if msa_signed_in() else "out")
-+        root.after(0, finish)
++    def _on_auth_error(self, message):
++        if not _alive(self):
++            return
++        _desktop_error(message)
++        if getattr(self, "_auth_dialog", None) and _alive(self._auth_dialog):
++            self._auth_dialog.close()
++        self._refresh_account_row("in" if msa_signed_in() else "out")
 +
-+    def code_dialog(url, code, complete_url=None):
-+        verification_url = url or "https://www.microsoft.com/link"
-+        qr_url = complete_url or f"https://login.live.com/oauth20_remoteconnect.srf?otc={code}"
-         d = dialog("Sign in to Microsoft", 380, 370)
-         ui["auth_dialog"] = d
-         def on_close():
-@@ -1552,12 +1561,12 @@
-         d.bind("<Escape>", lambda _event: on_close())
-         row = ctk.CTkFrame(d, fg_color="transparent")
-         row.pack(anchor="center", pady=(24, 8))
--        mkbtn(row, "Sign In to your Microsoft account", lambda: subprocess.Popen(
--            ["xdg-open", url], stdout=subprocess.DEVNULL,
-+        mkbtn(row, "Open Microsoft sign-in page", lambda: subprocess.Popen(
-+            ["xdg-open", verification_url], stdout=subprocess.DEVNULL,
-             stderr=subprocess.DEVNULL), kind="primary",
-             font=font(16, "bold"), height=42, width=280, text_color=T.FG).pack(side="left")
+     def _on_online(self):
+         # Reached via AuthBridge.online, already queued onto the UI thread.
+         if not _alive(self):
+@@ -1940,7 +1951,7 @@ class MainWindow(QMainWindow):
+         threading.Thread(target=work, daemon=True).start()
  
--        ctk.CTkLabel(d, text="Scan this QR or open the link and enter this code:",
-+        ctk.CTkLabel(d, text="Scan the QR or open Microsoft's device-code page and enter this code:",
-                      text_color=T.SUB).pack(anchor="center", pady=(8, 12))
- 
-         qr_frame = ctk.CTkFrame(d, fg_color="transparent", width=150, height=150)
-@@ -1590,7 +1599,7 @@
-             from .qrcodegen import QrCode
-             from PIL import Image
-             try:
--                qr = QrCode.encode_text(url, QrCode.Ecc.LOW)
-+                qr = QrCode.encode_text(qr_url, QrCode.Ecc.LOW)
-                 border = 2
-                 size = qr.get_size() + border * 2
-                 img = Image.new("1", (size, size), 1)
+     def _code_dialog(self, url, code):
+-        full_url = f"https://login.live.com/oauth20_remoteconnect.srf?otc={code}"
++        full_url = url or "https://www.microsoft.com/link"
+         dlg = QDialog(self)
+         dlg.setObjectName("Root")
+         dlg.setWindowTitle("Sign in to Microsoft")
