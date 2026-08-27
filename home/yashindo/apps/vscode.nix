@@ -5,10 +5,26 @@
   lib,
   config,
   ...
-}: {
-  options.modules.vscode.enable = lib.mkEnableOption "VS Code";
+}: let
+  cfg = config.modules.vscode;
+  settingsPath = "${config.xdg.configHome}/Code/User/settings.json";
+  stagedSettingsPath = "${config.xdg.configHome}/Code/User/.settings.json.hm-staged";
+in {
+  options.modules.vscode = {
+    enable = lib.mkEnableOption "VS Code";
 
-  config = lib.mkIf config.modules.vscode.enable {
+    mutableUserSettings = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = ''
+        Whether Home Manager should seed VS Code settings while leaving
+        settings.json writable for imperative edits. Imperative values override
+        declarative defaults during activation.
+      '';
+    };
+  };
+
+  config = lib.mkIf cfg.enable {
     home.file.".local/share/applications/code-url-handler.desktop".text = ''
       [Desktop Entry]
       NoDisplay=true
@@ -105,6 +121,10 @@
 
           "git.openRepositoryInParentFolders" = "always";
 
+          # Opening a workspace must not silently start unbounded dev/watch
+          # tasks. Run approved tasks explicitly from the integrated terminal.
+          "task.allowAutomaticTasks" = "off";
+
           "nix.enableLanguageServer" = true;
           "nix.serverPath" = "nil";
           "nix.formatterPath" = "alejandra";
@@ -144,6 +164,8 @@
 
           "vscord.app.name" = "Visual Studio Code";
 
+          "biome.lsp.trace.server" = "messages";
+
           "chatgpt.reviewDelivery" = "detached";
 
           "files.autoSave" = "afterDelay";
@@ -161,6 +183,54 @@
         };
       };
     };
+
+    # Home Manager normally links settings.json into the Nix store. Keep the
+    # declared file as a baseline, then replace the link with a user-owned
+    # writable file so VS Code can make imperative edits.
+    home.file."${settingsPath}".force = cfg.mutableUserSettings;
+
+    home.activation.vscodeMutableSettingsPrepare = lib.mkIf cfg.mutableUserSettings (
+      lib.hm.dag.entryBefore ["checkLinkTargets"] ''
+        if [[ ! -v DRY_RUN ]]; then
+          settings_file=${lib.escapeShellArg settingsPath}
+          staged_file=${lib.escapeShellArg stagedSettingsPath}
+          ${pkgs.coreutils}/bin/mkdir -p "$(${pkgs.coreutils}/bin/dirname "$staged_file")"
+
+          if [[ -e "$settings_file" || -L "$settings_file" ]]; then
+            ${pkgs.coreutils}/bin/cp -L "$settings_file" "$staged_file"
+            if [[ ! -L "$settings_file" ]]; then
+              ${pkgs.coreutils}/bin/rm -f "$settings_file"
+            fi
+          fi
+        fi
+      ''
+    );
+
+    home.activation.vscodeMutableSettingsFinalize = lib.mkIf cfg.mutableUserSettings (
+      lib.hm.dag.entryAfter ["linkGeneration"] ''
+        if [[ ! -v DRY_RUN ]]; then
+          settings_file=${lib.escapeShellArg settingsPath}
+          staged_file=${lib.escapeShellArg stagedSettingsPath}
+          tmp_file="$(${pkgs.coreutils}/bin/mktemp "$settings_file.tmp.XXXXXX")"
+
+          if [[ -s "$staged_file" ]]; then
+            if ${pkgs.jq}/bin/jq -e . "$staged_file" >/dev/null 2>&1; then
+              if ! ${pkgs.jq}/bin/jq -s '.[0] * .[1]' "$settings_file" "$staged_file" > "$tmp_file"; then
+                ${pkgs.coreutils}/bin/cp -L "$staged_file" "$tmp_file"
+              fi
+            else
+              ${pkgs.coreutils}/bin/cp -L "$staged_file" "$tmp_file"
+            fi
+          else
+            ${pkgs.coreutils}/bin/cp -L "$settings_file" "$tmp_file"
+          fi
+
+          ${pkgs.coreutils}/bin/chmod u+rw "$tmp_file"
+          ${pkgs.coreutils}/bin/mv -f "$tmp_file" "$settings_file"
+          ${pkgs.coreutils}/bin/rm -f "$staged_file"
+        fi
+      ''
+    );
 
     # ------------------------------------------------------------------
     # IMPORTANT: DO NOT redefine full desktop entries for VS Code
