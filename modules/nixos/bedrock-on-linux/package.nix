@@ -10,25 +10,23 @@
   gnutar,
   lib,
   makeWrapper,
-  python313,
+  libxcomposite,
+  python312,
   stdenvNoCC,
   steam,
   zstd,
 }: let
-  python = python313.withPackages (ps:
+  python = python312.withPackages (ps:
     with ps; [
       certifi
       cryptography
-      customtkinter
-      darkdetect
       packaging
-      pillow
+      pyside6
       python-xlib
-      tkinter
     ]);
   unwrapped = stdenvNoCC.mkDerivation {
     pname = "bedrock-on-linux";
-    version = "unstable";
+    version = "2.2.4";
     src = bedrockSource;
 
     dontConfigure = true;
@@ -46,20 +44,14 @@
       runHook preCheck
 
       PYTHONPATH="$PWD" ${python}/bin/python3 - <<'PY'
-      import tkinter
+      from PySide6.QtCore import QObject
+      from PySide6.QtWidgets import QApplication
 
-      import customtkinter
-      from PIL import Image
-
-      from bol.qrcodegen import QrCode
-
-      qr = QrCode.encode_text(
-          "https://login.live.com/oauth20_remoteconnect.srf?otc=TESTCODE",
-          QrCode.Ecc.LOW,
-      )
-      image = Image.new("1", (qr.get_size() + 4, qr.get_size() + 4), 1)
-      assert image.size[0] > 21
-      print("BedrockOnLinux GUI and QR dependencies are available")
+      # Importing QtCore and QtWidgets validates the packaged GUI toolkit
+      # without opening a display during the Nix build.
+      assert QObject is not None
+      assert QApplication is not None
+      print("BedrockOnLinux Qt GUI dependencies are available")
       PY
 
       PYTHONPATH="$PWD" ${python}/bin/python3 - <<'PY'
@@ -105,6 +97,7 @@
         --add-flags "$out/lib/bedrock-on-linux/bedrock-on-linux" \
         --prefix PATH : "${lib.makeBinPath [bash coreutils curl findutils gawk gnugrep gnused gnutar zstd]}" \
         --prefix PYTHONPATH : "$out/lib/bedrock-on-linux" \
+        --set QT_QPA_PLATFORM xcb \
         --unset LD_LIBRARY_PATH \
         --unset STEAM_RUNTIME_LIBRARY_PATH \
         --set PYTHONNOUSERSITE 1
@@ -123,10 +116,10 @@
 in
   steam.buildRuntimeEnv {
     pname = "bedrock-on-linux";
-    version = "unstable";
+    version = "2.2.4";
     executableName = "bedrock-on-linux";
     runScript = lib.getExe unwrapped;
-    extraPkgs = _: [unwrapped];
+    extraPkgs = _: [libxcomposite unwrapped];
 
     # Keep the desktop entry and icon from the Nix-built launcher visible in
     # the FHS wrapper's output, just like the official umu-launcher package.
