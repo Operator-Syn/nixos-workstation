@@ -1,46 +1,90 @@
-{pkgs, ...}: {
+{pkgs, ...}: let
+  playwrightRuntimePackages = with pkgs; [
+    gtk3
+    gtk4
+    glib
+    gdk-pixbuf
+    pango
+    cairo
+    harfbuzz
+    icu
+    gst_all_1.gstreamer
+    gst_all_1.gst-plugins-base
+    gst_all_1.gst-plugins-good
+    gst_all_1.gst-plugins-bad
+    mesa
+    libdrm
+    libxcb
+    xorg.libX11
+    xorg.libXdamage
+    xorg.libXcomposite
+    xorg.libXfixes
+    xorg.libXrandr
+    wayland
+    libxkbcommon
+    nss
+    nspr
+    alsa-lib
+    cups
+    dbus
+    expat
+    fontconfig
+    freetype
+    woff2
+    lcms2
+    libsecret
+    libnotify
+    libproxy
+    libmanette
+    libjpeg
+    libpng
+    libwebp
+    libavif
+    dav1d
+  ];
+in {
   imports = [
     ./scripts.nix
   ];
 
-  environment.systemPackages = with pkgs; [
-    alejandra
-    docker-compose
-    ffmpeg-full
-    easyeffects
-    gamemode
-    git
-    gnused
-    nix
-    ripgrep
-    nil
-    nixfmt-rfc-style
-    nodejs_24
-    bun
-    pavucontrol
-    kdePackages.kamoso
-    kdePackages.qrca
-    zbar
-    tcpdump
-    tree
-    openssl
-    xorg.libX11
-    xorg.libXcomposite
-    dmidecode
-    wl-clipboard
-    rustc
-    cargo
-    clippy
-    rustfmt
+  environment.systemPackages = with pkgs;
+    [
+      alejandra
+      docker-compose
+      ffmpeg-full
+      easyeffects
+      gamemode
+      git
+      gnused
+      nix
+      ripgrep
+      nil
+      nixfmt-rfc-style
+      nodejs_24
+      bun
+      pavucontrol
+      kdePackages.kamoso
+      kdePackages.qrca
+      zbar
+      tcpdump
+      tree
+      openssl
+      dmidecode
+      wl-clipboard
+      rustc
+      cargo
+      clippy
+      rustfmt
 
-    kdePackages.partitionmanager
-    kdePackages.aurorae
-    kdePackages.breeze
-    kdePackages.kconfig
-    kdePackages.kcoreaddons
-    kdePackages.kdecoration
-    kdePackages.plasma-browser-integration
-    kdePackages.polkit-kde-agent-1
-    kdePackages.qttools
-  ];
+      kdePackages.partitionmanager
+      kdePackages.aurorae
+      kdePackages.breeze
+      kdePackages.kconfig
+      kdePackages.kcoreaddons
+      kdePackages.kdecoration
+      kdePackages.plasma-browser-integration
+      kdePackages.polkit-kde-agent-1
+      kdePackages.qttools
+    ]
+    ++ playwrightRuntimePackages;
 }
