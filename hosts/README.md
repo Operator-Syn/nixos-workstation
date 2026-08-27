@@ -52,6 +52,13 @@ The old Docker-managed Debian container module remains disabled. The system-leve
 
 The Debian Distrobox uses `/bin/bash` as its container shell so it does not try to launch the host NixOS `fish` binary inside Debian.
 
+## Memory Protection
+
+Hiraeth uses zram-backed compressed swap and enables systemd-oomd monitoring for
+user-owned slices so runaway desktop or development workloads can be stopped
+before a global kernel OOM. No disk-backed swap device is declared; adding one
+would require a separate storage and hibernation decision.
+
 After switching the system, create the declared Debian box once:
 
 ```sh
