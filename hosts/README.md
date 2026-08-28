@@ -54,10 +54,7 @@ The Debian Distrobox uses `/bin/bash` as its container shell so it does not try 
 
 ## Memory Protection
 
-Hiraeth uses zram-backed compressed swap and enables systemd-oomd monitoring for
-user-owned slices so runaway desktop or development workloads can be stopped
-before a global kernel OOM. No disk-backed swap device is declared; adding one
-would require a separate storage and hibernation decision.
+Hiraeth keeps zram-backed compressed swap enabled with `zstd`, `memoryPercent = 50`, and `priority = 100`. `vm.swappiness` is set to `100` so anonymous pressure moves into compressed swap earlier instead of stalling the desktop on reclaim. `systemd-oomd` monitors the top-level `user.slice` at a `60%` memory-pressure limit for `30 seconds`, which means runaway desktop or development workloads may be terminated sooner and any unsaved work in those apps can be lost. No disk-backed swap device or hibernation change is part of this policy.
 
 After switching the system, create the declared Debian box once:
 
