@@ -26,6 +26,7 @@
     installPhase = ''
       runHook preInstall
       install -Dm755 package/vendor/x86_64-unknown-linux-musl/bin/codex $out/bin/codex
+      install -Dm755 package/vendor/x86_64-unknown-linux-musl/bin/codex-code-mode-host $out/bin/codex-code-mode-host
       runHook postInstall
     '';
 
