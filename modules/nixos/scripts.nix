@@ -14,7 +14,8 @@
 
   nvrun = pkgs.writeShellScriptBin "nvrun" ''
     export __NV_PRIME_RENDER_OFFLOAD=1
-    export __GL_VENDOR_LIBRARY_NAME=nvidia
+    export __NV_PRIME_RENDER_OFFLOAD_PROVIDER=NVIDIA-G0
+    export __GLX_VENDOR_LIBRARY_NAME=nvidia
     export __VK_LAYER_NV_optimus=NVIDIA_only
     export GAMEMODE_DEBUG=0
     exec ${pkgs.gamemode}/bin/gamemoderun "$@"
