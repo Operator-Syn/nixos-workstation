@@ -44,7 +44,7 @@ modules/
 | `openssh.nix` | OpenSSH server with password and root login disabled |
 | `packages.nix` | system-wide packages |
 | `scripts.nix` | `rebuild`, `update-system`, `update-codex`, `update-hardware`, `wifi-hotspot`, `nvrun`, `getGPU` |
-| `steam.nix` and `steam/` | Steam, GameMode, gamescope, launchers, and Protontricks support |
+| `steam.nix` and `steam/` | Steam, GameMode (including `gamemode-toggle`), gamescope, launchers, and Protontricks support |
 | `kvm-manager.nix` | KVM/libvirt services, default network startup, and virt-manager |
 | `virtualisation.nix` | Docker service |
 
@@ -104,6 +104,23 @@ It uses an active Ethernet connection for internet sharing and accepts optional
 interface, SSID, and connection-name arguments: `wifi-hotspot [interface] [ssid]
 [connection-name]`. Existing profiles with the chosen name are repaired to AP
 mode when possible.
+
+`gamemode-toggle` controls a manual GameMode request without changing a game's
+launch options. Run `gamemode-toggle` or `gamemode-toggle toggle` to switch it,
+or use `on`, `off`, and `status` explicitly. This manual request is separate
+from per-game requests; stopping the manual request does not override a game
+that is still requesting GameMode.
+
+For Steam, the standard per-game launch option is `gamemoderun %command%`. On
+Hiraeth, use `nvrun %command%` when the game should also use NVIDIA PRIME
+offload; it combines GameMode with the same PRIME variables as NixOS’s generated
+`nvidia-offload` helper. `gamemoded -s` reports whether GameMode is active, and
+`gamemoded -t` runs the installation diagnostics.
+
+The Steam module also exposes a Steam Gamescope Wayland session through the
+display manager. It uses the pinned NixOS Gamescope defaults and `cap_sys_nice`;
+select it from SDDM when a Gamescope session is desired, while the normal Plasma
+session remains unchanged.
 
 ## Hiraeth ASUS Controls
 
