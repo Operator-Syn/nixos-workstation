@@ -63,6 +63,7 @@ in {
       nodejs_24
       bun
       pavucontrol
+      qbittorrent
       kdePackages.kamoso
       kdePackages.qrca
       zbar
