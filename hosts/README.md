@@ -134,7 +134,7 @@ an NVIDIA RTX 4050-class discrete GPU. Its ASUS Armoury controls require the
 newer kernel package set, while the proprietary NVIDIA module pairing used by
 the stable kernel does not provide a compatible Armoury-capable generation.
 
-The host therefore uses `pkgsUnstable.linuxPackages_latest` together with
+The host therefore uses `pkgsUnstable.linuxPackages` together with
 `hardware.nvidia.open = true` and the matching latest NVIDIA package from that
 kernel package set. Both the `asus-armoury` module and the NVIDIA modules must
 be present in the built generation before switching to it.
