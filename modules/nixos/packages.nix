@@ -53,6 +53,7 @@ in {
       docker-compose
       ffmpeg-full
       easyeffects
+      krita
       gamemode
       git
       gnused
