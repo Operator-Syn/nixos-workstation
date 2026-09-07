@@ -44,6 +44,7 @@
                   "applications:brave-browser.desktop"
                   "applications:code.desktop"
                   "applications:Alacritty.desktop"
+                  "applications:hermes.desktop"
                 ];
               };
             }
