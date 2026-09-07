@@ -131,10 +131,11 @@ client receives an address and can reach the internet through Ethernet.
 
 Hiraeth is an ASUS TUF Gaming A16 FA607NUQ with AMD integrated graphics and
 an NVIDIA RTX 4050-class discrete GPU. Its ASUS Armoury controls require the
-newer kernel package set, while the proprietary NVIDIA module pairing used by
-the stable kernel does not provide a compatible Armoury-capable generation.
+newer Zen kernel package set, while the proprietary NVIDIA module pairing used
+by the stable kernel does not provide a compatible Armoury-capable generation.
 
-The host therefore uses `pkgsUnstable.linuxPackages` together with
+The host therefore uses `pkgsUnstable.linuxPackages_zen`, resolving to
+`linux-zen-7.1.9` in the current flake lock, together with
 `hardware.nvidia.open = true` and the matching latest NVIDIA package from that
 kernel package set. Both the `asus-armoury` module and the NVIDIA modules must
 be present in the built generation before switching to it.
@@ -145,6 +146,11 @@ rollback configuration. Dynamic Boost is firmware- and GPU-mode-dependent;
 `nvidia-smi -q -d POWER` is the authoritative check for the active and maximum
 power limits. A 90 W maximum does not mean the current boot is permitted to use
 90 W, especially in ASUS Hybrid mode.
+
+Hiraeth also declares `pcie_aspm.policy=performance` to keep PCIe link power
+management from entering the states associated with the observed correctable
+NVIDIA/root-port errors under load. This trades some idle power savings for link
+stability; verify the policy and AER counters after each reboot.
 
 Before activation, verify the candidate generation contains:
 
