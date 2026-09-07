@@ -87,7 +87,9 @@ Always keep the option name close to the feature it controls.
 | `development/distrobox.nix` | Distrobox package and Docker backend selection |
 | `development/distrobox-debian-dev.nix` | `debian-dev` assemble manifest and helper command |
 | `development/debian-container.nix` | Previous Docker-managed Debian container module, currently not imported by `hiraeth` |
-| `development/python-shell.nix` | Optional system-level Python support, enabled on `hiraeth`; Playwright native runtime variables remain scoped to dev shells |
+| `development/python-shell.nix` | Optional system-level Python support, enabled on `hiraeth`; keeps `playwright-driver.browsers` as a package and leaves browser path selection to each project |
+
+The Python module retains `playwright-driver.browsers` for Nix-managed workflows but intentionally does not export `PLAYWRIGHT_BROWSERS_PATH`. `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` keeps browser installation explicit/manual; project-local setup must choose a browser location matching its Playwright version. Native Playwright runtime variables remain scoped to the dev shells.
 
 The Distrobox base module and individual box declarations are kept separate so installing Distrobox is not coupled to creating a specific mutable development box.
 
@@ -110,6 +112,15 @@ launch options. Run `gamemode-toggle` or `gamemode-toggle toggle` to switch it,
 or use `on`, `off`, and `status` explicitly. This manual request is separate
 from per-game requests; stopping the manual request does not override a game
 that is still requesting GameMode.
+
+While GameMode has at least one active client, its custom hooks temporarily set
+KDE's global `AnimationDurationFactor` to `0` and restore the previous value when
+the last client exits. This keeps the Plasma session's animation policy unchanged
+outside games, and also applies to the manual `gamemode-toggle` request.
+
+The same GameMode hooks stop containers that were already running when GameMode
+started, then start those exact containers again when the last client exits. If
+Docker is unavailable or no containers are running, the hook leaves it unchanged.
 
 For Steam, the standard per-game launch option is `gamemoderun %command%`. On
 Hiraeth, use `nvrun %command%` when the game should also use NVIDIA PRIME
