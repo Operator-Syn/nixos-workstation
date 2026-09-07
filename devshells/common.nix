@@ -91,7 +91,8 @@ in rec {
     GST_PLUGIN_SYSTEM_PATH_1_0 =
       lib.makeSearchPath "lib/gstreamer-1.0" gstreamerPlugins;
     LD_LIBRARY_PATH = lib.makeLibraryPath nativeLibraries;
-    PLAYWRIGHT_BROWSERS_PATH = "${pkgs.playwright-driver.browsers}";
+    # Keep browser installation explicit so each project can select a matching
+    # Playwright revision and location.
     PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1";
   };
 
