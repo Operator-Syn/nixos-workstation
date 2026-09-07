@@ -31,10 +31,14 @@ home/
 | Category | Examples |
 | --- | --- |
 | Terminal and shell | Alacritty, fish, starship |
-| Apps | Brave, Google Chrome, Firefox, Discord, Obsidian, VS Code |
+| Apps | Brave, Google Chrome, Firefox, Discord, Obsidian, VS Code, Hermes Desktop |
 | User packages | fonts, utilities, creative tools |
 | Desktop preferences | Plasma panels, colors, wallpaper, icons |
 | User services | app-level user services and autostart entries |
+
+KWin's Blur effect is explicitly disabled in
+`home/yashindo/plasma/desktop-settings.nix` while compositor offscreen-framebuffer
+errors are being investigated; the other configured effects remain unchanged.
 
 VS Code user settings, language-specific formatters, Nix language-server
 configuration, terminal defaults, and trusted schema domains are declared in
@@ -52,6 +56,15 @@ entry uses an executable named `obsidian` so Obsidian's CLI registration check
 does not identify the application as plain Electron. Obsidian's desktop process
 also starts at login iconified and hidden from the taskbar, because the CLI
 requires the desktop application to be running.
+
+Hermes Desktop is enabled through
+`home/yashindo/apps/hermes-desktop.nix`. It uses the upstream Home Manager
+module's Nix-packaged desktop runtime and launcher, with no persistent Hermes
+gateway, system service, container, custom dashboard token, or declarative
+provider credentials. The Plasma taskbar pin is declared in
+`home/yashindo/plasma/taskbar-panel.nix`. The Hermes flake input follows
+upstream `main`, while `flake.lock` keeps each installed revision
+reproducible until the next explicit flake update.
 
 ## Does Not Belong Here
 
