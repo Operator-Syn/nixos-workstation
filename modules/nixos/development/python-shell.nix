@@ -50,10 +50,10 @@ in {
     ];
 
     environment.variables = {
-      # Native browser libraries and GStreamer plugins are supplied by the
-      # project-scoped `python-playwright` dev shell. Keep only the browser
-      # bundle location globally available for projects that opt into it.
-      PLAYWRIGHT_BROWSERS_PATH = "${pkgs.playwright-driver.browsers}";
+      # Keep package-install browser downloads disabled so project-local setup
+      # can explicitly install/select a matching browser revision and location.
+      # The Nix browser bundle remains available as a package for workflows that
+      # intentionally use it; no browser path is exported globally.
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1";
     };
   };
