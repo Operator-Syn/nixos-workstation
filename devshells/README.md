@@ -2,7 +2,7 @@
 
 Reusable project environments exposed through `flake.nix` as `devShells`.
 
-These shells let projects opt into the tools they need without making the whole system carry every language runtime, compiler, browser bundle, or CUDA package globally. Hiraeth keeps the Playwright browser bundle discoverable for system Python projects, while native library and GStreamer variables are scoped to the Playwright dev shells.
+These shells let projects opt into the tools they need without making every project carry every language runtime, compiler, browser bundle, or CUDA package. The Playwright shells provide native runtime libraries and keep the Nix `playwright-driver.browsers` package available for explicit/manual workflows, but they do not set `PLAYWRIGHT_BROWSERS_PATH`; each project owns browser installation and location so it can select a matching Playwright revision.
 
 ---
 
@@ -14,8 +14,8 @@ These shells let projects opt into the tools they need without making the whole 
 | `python` | Python projects | Python, Pipenv, compiler/native build support |
 | `node` | npm/pnpm/bun projects | Node.js, pnpm, bun |
 | `python-node` | Node projects with native builds | Node plus Python/compiler tooling |
-| `playwright` | Browser automation only | Playwright browser bundle and env vars |
-| `python-playwright` | Python projects using Playwright | Python shell plus Playwright browser setup |
+| `playwright` | Browser automation only | Playwright runtime libraries and Nix browser bundle |
+| `python-playwright` | Python projects using Playwright | Python shell, runtime libraries, and Nix browser bundle |
 | `cuda` | CUDA/ML experiments | Python, CUDA toolkit, OpenMPI |
 | `latex` | TeX documents | Full TeX Live scheme |
 
@@ -70,6 +70,10 @@ Then allow it once from the project directory:
 direnv allow
 ```
 
+## Browser Ownership
+
+The `playwright` and `python-playwright` shells keep `playwright-driver.browsers` in their package sets for Nix-managed workflows, but intentionally leave `PLAYWRIGHT_BROWSERS_PATH` unset. They retain `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` so dependency installation does not implicitly download a browser. Project-local setup must explicitly install/select the browser revision and location matching its Playwright package. This configuration change does not install a browser.
+
 ## Composition Model
 
 The shells are built from shared package groups in `devshells/default.nix`.
@@ -81,7 +85,7 @@ nodePackages
 playwrightEnv
 ```
 
-`playwrightEnv` provides the native library path, GStreamer plugin path, and Playwright browser path used by both Playwright shells.
+`playwrightEnv` provides the native library path, GStreamer plugin path, and explicit browser-download policy used by both Playwright shells. It deliberately does not choose a browser path.
 
 That means shells can be combined without copying long package lists everywhere.
 
@@ -89,7 +93,7 @@ That means shells can be combined without copying long package lists everywhere.
 
 - Add shared groups when several shells need the same tools.
 - Add named shells for common project shapes.
-- Prefer `python-playwright` over asking each Python project to discover browser paths manually.
+- Prefer `python-playwright` for shared native Playwright runtime dependencies; let each project choose its matching browser location.
 - Keep Dalanpad's GTK/WebKitGTK native build shell in the Dalanpad repository rather than adding those development packages globally.
 - Prefer dev shells over adding project-specific tools to global Home Manager packages.
 - Use the Debian Distrobox for dirty dependency experiments that should persist outside a single project shell.
