@@ -1,5 +1,6 @@
 {inputs, ...}: {
   imports = [
+    inputs.hermes-agent.homeManagerModules.default
     inputs.plasma-manager.homeModules.plasma-manager
     inputs.sops-nix.homeManagerModules.sops
     ./apps
