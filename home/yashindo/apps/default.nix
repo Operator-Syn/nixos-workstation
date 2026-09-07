@@ -14,6 +14,7 @@
     ./git.nix
     ./gh.nix
     ./goose.nix
+    ./hermes-desktop.nix
     ./latex.nix
     ./libreoffice.nix
     ./obs-studio.nix
@@ -47,6 +48,7 @@
     git.enable = true;
     gh.enable = true;
     goose.enable = false;
+    hermes-desktop.enable = true;
     latex.enable = true;
     libreoffice.enable = true;
     obs-studio.enable = true;
