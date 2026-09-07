@@ -33,6 +33,8 @@
       url = "github:ezKEa/aagl-gtk-on-nix/release-25.11";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+
+    hermes-agent.url = "github:NousResearch/hermes-agent";
   };
 
   outputs = {
