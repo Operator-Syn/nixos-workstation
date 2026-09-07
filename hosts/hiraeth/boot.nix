@@ -1,11 +1,15 @@
 {pkgsUnstable, ...}: {
   boot = {
-    # ASUS Armoury support is provided by the newer kernel package set.
+    # Use the Zen package set for ASUS Armoury support and gaming latency.
     # NVIDIA is configured with open kernel modules in nvidia.nix so both
     # drivers are available in the same generation.
-    kernelPackages = pkgsUnstable.linuxPackages;
+    kernelPackages = pkgsUnstable.linuxPackages_zen;
 
     kernelModules = ["ntsync"];
+
+    # Keep PCIe link power management at the performance policy to avoid the
+    # correctable NVIDIA/root-port errors observed under GPU load.
+    kernelParams = ["pcie_aspm.policy=performance"];
 
     # Keep the RTL8852BE AP path out of its low-power and PCIe link-power
     # states; those states cause rtw89 queue flush failures during hotspot use.
