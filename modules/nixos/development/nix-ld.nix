@@ -16,6 +16,8 @@
     libdrm
     libxcb
     xorg.libX11
+    xorg.libXi
+    xorg.libXtst
     xorg.libXdamage
     xorg.libXcomposite
     xorg.libXfixes
@@ -55,6 +57,7 @@ in {
         curl
         libffi
         sqlite
+        at-spi2-core
       ]
       ++ playwrightLibraries;
   };
