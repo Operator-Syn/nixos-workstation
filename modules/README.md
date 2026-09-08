@@ -91,6 +91,14 @@ Always keep the option name close to the feature it controls.
 
 The Python module retains `playwright-driver.browsers` for Nix-managed workflows but intentionally does not export `PLAYWRIGHT_BROWSERS_PATH`. `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` keeps browser installation explicit/manual; project-local setup must choose a browser location matching its Playwright version. Native Playwright runtime variables remain scoped to the dev shells.
 
+The global package and `nix-ld` surfaces also provide the Linux runtime needed
+by Hermes' optional Browser Use and Computer Use integrations: `uv`,
+`at-spi2-core`, `xorg.libXi`, and `xorg.libXtst`. Hermes Desktop installs the
+Browser Use CLI and `cua-driver` into user-owned state when their tool settings
+are enabled; Nix activation does not download those binaries or credentials.
+Hiraeth remains on the default XWayland path, and no static Chrome/Brave CDP
+endpoint is declared.
+
 The Distrobox base module and individual box declarations are kept separate so installing Distrobox is not coupled to creating a specific mutable development box.
 
 ## Editing Notes
