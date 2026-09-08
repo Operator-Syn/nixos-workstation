@@ -66,6 +66,15 @@ provider credentials. The Plasma taskbar pin is declared in
 upstream `main`, while `flake.lock` keeps each installed revision
 reproducible until the next explicit flake update.
 
+Hermes' optional Browser Use and Computer Use integrations use the host runtime
+provided by Hiraeth's Nix configuration. `uv`, AT-SPI, and the X11 input
+libraries are declared systemwide so the Hermes Desktop setup flow can install
+the user-owned Browser Use CLI and `cua-driver` into `~/.hermes` and
+`~/.cua-driver` after activation. Provider credentials, Browser Use cloud
+authentication, and real-browser profile access remain manual and private.
+The desktop uses the default XWayland path; native Wayland and static browser
+CDP endpoints are not configured.
+
 ## Does Not Belong Here
 
 | Category | Put It Here Instead |
