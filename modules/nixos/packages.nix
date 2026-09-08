@@ -16,6 +16,8 @@
     libdrm
     libxcb
     xorg.libX11
+    xorg.libXi
+    xorg.libXtst
     xorg.libXdamage
     xorg.libXcomposite
     xorg.libXfixes
@@ -61,8 +63,10 @@ in {
       ripgrep
       nil
       nixfmt-rfc-style
+      uv
       nodejs_24
       bun
+      at-spi2-core
       pavucontrol
       qbittorrent
       kdePackages.kamoso
