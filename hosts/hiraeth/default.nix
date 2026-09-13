@@ -1,4 +1,4 @@
-{inputs, ...}: {
+{inputs, lib, ...}: {
   imports = [
     inputs.aagl.nixosModules.default
     ./hardware-configuration.nix
@@ -35,6 +35,17 @@
   nix.settings = inputs.aagl.nixConfig;
 
   networking.hostName = "Hiraeth";
+
+  # Keep zram first, then spill to NVMe-backed swap before a global OOM.
+  swapDevices = [
+    {
+      # nixpkgs-25.11 currently evaluates the optional label field eagerly.
+      label = "";
+      device = lib.mkForce "/swapfile";
+      size = 16384;
+      priority = 10;
+    }
+  ];
 
   modules = {
     netbird.enable = true;
