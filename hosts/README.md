@@ -33,7 +33,7 @@ hosts/
 | Hardware | generated hardware scan, filesystems, CPU microcode |
 | Graphics | GPU bus IDs, NVIDIA mode, PRIME/offload settings |
 | Imports | selecting reusable modules from `modules/nixos/` |
-| Services | Obsidian, NetBird, and OpenSSH |
+| Services | NetBird and OpenSSH |
 
 The host enables OpenSSH through `modules.openssh.enable`. The server accepts
 public-key authentication while disabling password, keyboard-interactive, and
