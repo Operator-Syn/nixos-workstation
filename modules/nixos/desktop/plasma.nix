@@ -110,4 +110,9 @@
       };
     };
   };
+
+  # Avahi can leave a dead PID file behind across service reactivation.
+  # Remove only that runtime marker immediately before starting Avahi; the
+  # service manager has already stopped any prior instance at this point.
+  systemd.services.avahi-daemon.serviceConfig.ExecStartPre = "${pkgs.coreutils}/bin/rm -f /run/avahi-daemon/pid";
 }
