@@ -92,6 +92,7 @@ class GraphifyNixAdapterTests(unittest.TestCase):
             "sops-nix",
             "aagl",
             "bedrock-on-linux",
+            "hermes-agent",
         }
         actual = {
             link["target"].removeprefix("nix_input_")
