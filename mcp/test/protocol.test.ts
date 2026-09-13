@@ -238,6 +238,52 @@ describe("MCP stdio workflow", () => {
     expect(prepared.result?.isError).toBe(true);
   });
 
+  test("allows the reviewed public env template in whole-tree snapshots", async () => {
+    const repository = await createTemporaryRepository();
+    await mkdir(`${repository}/vps/web-research`, {recursive: true});
+    await writeFile(
+      `${repository}/vps/web-research/.env.example`,
+      "FIRECRAWL_API_KEY=REPLACE_WITH_FIRECRAWL_API_KEY\n",
+    );
+    const server = await startServer({env: {...process.env, NIX_CONFIG_MCP_ROOT: repository}});
+    await server.call(1, "initialize", {
+      protocolVersion: "2025-06-18",
+      capabilities: {},
+      clientInfo: {name: "test", version: "1"},
+    });
+
+    const prepared = await server.call(2, "tools/call", {
+      name: "prepare_working_tree_commit",
+      arguments: {},
+    });
+    expect(prepared.result?.isError).not.toBe(true);
+    const operation = JSON.parse(prepared.result?.content?.[0]?.text ?? "{}");
+    expect(operation.paths).toContain("vps/web-research/.env.example");
+    expect(operation.diff).toContain("REPLACE_WITH_FIRECRAWL_API_KEY");
+  });
+
+  test("keeps the public env template denied to direct patch tools", async () => {
+    const server = await startServer();
+    await server.call(1, "initialize", {
+      protocolVersion: "2025-06-18",
+      capabilities: {},
+      clientInfo: {name: "test", version: "1"},
+    });
+
+    const denied = await server.call(2, "tools/call", {
+      name: "prepare_patch",
+      arguments: {
+        changes: [
+          {
+            path: "vps/web-research/.env.example",
+            content: "FIRECRAWL_API_KEY=REPLACE_WITH_FIRECRAWL_API_KEY\n",
+          },
+        ],
+      },
+    });
+    expect(denied.result?.isError).toBe(true);
+  });
+
   test("includes secret changes in the reviewed working-tree snapshot when explicitly requested", async () => {
     const repository = await createTemporaryRepository();
     await mkdir(`${repository}/secrets`);
