@@ -43,10 +43,15 @@ modules/
 | `ollama.nix` | optional local Ollama service; currently not enabled by Hiraeth |
 | `openssh.nix` | OpenSSH server with password and root login disabled |
 | `packages.nix` | system-wide packages |
-| `scripts.nix` | `rebuild`, `update-system`, `update-codex`, `update-hardware`, `wifi-hotspot`, `nvrun`, `getGPU` |
+| `scripts.nix` | `rebuild`, `hermes-restart`, `update-system`, `update-codex`, `update-hardware`, `wifi-hotspot`, `nvrun`, `getGPU` |
 | `steam.nix` and `steam/` | Steam, GameMode (including `gamemode-toggle`), gamescope, launchers, and Protontricks support |
 | `kvm-manager.nix` | KVM/libvirt services, default network startup, and virt-manager |
 | `virtualisation.nix` | Docker service |
+
+The desktop module removes a stale `/run/avahi-daemon/pid` marker immediately
+before Avahi starts. This handles a dead runtime PID left by a prior service
+reactivation without changing Avahi discovery configuration or persistent
+state.
 
 ## Good Module Shape
 
