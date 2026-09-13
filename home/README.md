@@ -31,7 +31,7 @@ home/
 | Category | Examples |
 | --- | --- |
 | Terminal and shell | Alacritty, fish, starship |
-| Apps | Brave, Google Chrome, Firefox, Discord, Obsidian, VS Code, Hermes Desktop |
+| Apps | Brave, Google Chrome, Firefox, Discord, Obsidian, VS Code, Hermes Desktop, OpenCode CLI |
 | User packages | fonts, utilities, creative tools |
 | Desktop preferences | Plasma panels, colors, wallpaper, icons |
 | User services | app-level user services and autostart entries |
@@ -46,16 +46,23 @@ configuration, terminal defaults, and trusted schema domains are declared in
 writable `~/.config/Code/User/settings.json`; imperative edits are retained
 and take precedence over declarative defaults. Set
 `modules.vscode.mutableUserSettings = false` for a fully Home Manager-managed
-(read-only) settings file.
+(read-only) settings file. Rust Analyzer is pointed at the Nix-provided wrapper,
+which supplies standard-library sources matching the system Rust toolchain.
 
 General-purpose language runtimes such as Node and Python should usually stay out of `home/yashindo/packages.nix`. Prefer `devshells/` for project-scoped tooling and Distrobox for mutable dependency experiments.
 
-The Obsidian module keeps the desktop launcher separate from Obsidian's native
-Linux CLI. The CLI is provisioned at `~/.local/bin/obsidian`, while the desktop
-entry uses an executable named `obsidian` so Obsidian's CLI registration check
-does not identify the application as plain Electron. Obsidian's desktop process
-also starts at login iconified and hidden from the taskbar, because the CLI
-requires the desktop application to be running.
+The Obsidian module exposes `obsidian` (CLI), `obsidian-cli` (compatibility
+name), and `obsidian-desktop` (GUI). The CLI is provisioned at
+`~/.local/bin/obsidian`, and that directory is added to `PATH`; the desktop
+application must be running for CLI commands to work. The private Electron
+runtime is named `obsidian` internally so Obsidian's CLI registration check does
+not see plain Electron, but that GUI executable is not exposed as the user-facing
+`obsidian` command. The flake-locked runtime disables Obsidian's self-updater and
+cleans user updater `.asar` artifacts during activation. On KDE, the desktop
+bridge starts at login minimized with a taskbar entry so it can be restored. If
+the desktop is already running during activation, Obsidian state synchronization
+is deferred until a later activation rather than blocking the Home Manager
+generation.
 
 Hermes Desktop is enabled through
 `home/yashindo/apps/hermes-desktop.nix`. It uses the upstream Home Manager
