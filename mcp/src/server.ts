@@ -13,6 +13,9 @@ import {authorityContract, validateDeclarativeContract} from "./contract.ts";
 const serverRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const repoRoot = resolve(process.env.NIX_CONFIG_MCP_ROOT ?? serverRoot);
 const deniedNames = new Set([".env", ".env.local", ".env.production", "id_rsa", "id_ed25519"]);
+// This public template is allowed only through an explicitly reviewed
+// whole-tree commit; all other .env* paths stay protected.
+const reviewedPublicEnvExamplePath = "vps/web-research/.env.example";
 // `secrets` is denied by all tools except the reviewed whole-tree commit path,
 // which may include secret changes (e.g. SOPS ciphertext) under explicit review.
 const deniedDirectories = new Set([".git", "node_modules"]);
@@ -111,7 +114,9 @@ function safeRelativePath(input: string, allowSecrets = false): string {
     fail("Filenames beginning with ':' are denied because Git treats them as pathspec magic.");
   }
   const parts = rel.split(sep);
-  if (parts.some((part) => deniedNames.has(part) || part.startsWith(".env"))) {
+  const isReviewedPublicEnvExample =
+    allowSecrets && rel === reviewedPublicEnvExamplePath;
+  if (parts.some((part) => deniedNames.has(part) || part.startsWith(".env")) && !isReviewedPublicEnvExample) {
     fail("This path is denied by the project MCP security policy.");
   }
   if (parts.some((part) => deniedDirectories.has(part) || (part === "secrets" && !allowSecrets))) {
