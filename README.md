@@ -13,9 +13,10 @@ This repo is meant to be readable first: each folder owns one layer of the syste
 | `hosts/` | Machine-specific NixOS configuration | `hosts/hiraeth/default.nix` |
 | `modules/` | Reusable system modules | `modules/nixos/` |
 | `home/` | User-level Home Manager configuration | `home/yashindo/default.nix` |
+| `vps/docs/` | Public-safe VPS operational runbooks | `vps/docs/README.md` |
 | `devshells/` | Reusable project environments | `devshells/default.nix` |
 | `mcp/` | Repository-scoped Project MCP and contract tests | `mcp/src/server.ts` |
-| `scripts/` | Graphify and repository helper scripts | `scripts/rebuild_graphify.sh` |
+| `scripts/` | Graphify and repository helper scripts | `scripts/rebuild_graphify.sh`, `scripts/obsidian_graph_groups.py` |
 | `tests/` | Python helper and integration tests | `tests/` |
 | `Pipfile` / `Pipfile.lock` | Locked Graphify and Python test environment | `pipenv` |
 | `package.json` / `bun.lock` | Project MCP runtime and Bun tests | `bun` |
@@ -27,6 +28,7 @@ This repo is meant to be readable first: each folder owns one layer of the syste
 .
 |-- devshells/       reusable nix develop environments
 |-- home/            Home Manager profile and desktop config
+|-- vps/docs/        public-safe VPS operational runbooks
 |-- hosts/           concrete machine configurations
 |-- modules/         reusable NixOS system modules
 |-- mcp/             repository-scoped Project MCP
@@ -45,6 +47,7 @@ This repo is meant to be readable first: each folder owns one layer of the syste
 | Build the Hiraeth system | `nix build --no-link .#nixosConfigurations.nixos.config.system.build.toplevel` |
 | Run the canonical rebuild workflow | `rb` |
 | Run the rebuild helper directly | `rebuild` |
+| Restart Hermes gateway and running Desktop backends | `hermes-restart` |
 | Update flake inputs and rebuild | `update-system` |
 | Resolve and update the latest Codex CLI source | `update-codex` |
 | Refresh hardware configuration only | `uh` |
@@ -60,6 +63,8 @@ This repo is meant to be readable first: each folder owns one layer of the syste
 | Enter Debian Distrobox | `distrobox enter debian-dev` |
 
 `rb` is the canonical Fish alias for the system-wide `rebuild` helper. It refreshes the hardware configuration and activates the NixOS generation. Use `rebuild` directly from another shell, `update-system` to update flake inputs before rebuilding, or `uh`/`update-hardware` when only the hardware scan is needed. The direct `nixos-rebuild` command above is a low-level fallback that bypasses the custom hardware refresh. Activation is still user-owned and should be followed by live checks such as `systemctl --failed` and `docker ps`.
+
+`hermes-restart` restarts the user-owned `hermes-gateway.service` and restarts Hermes Desktop only when it was already running. Use `hermes-restart --gateway` for the gateway alone or `hermes-restart --desktop` to start Desktop even when it is closed. This is a targeted user-session restart; it does not activate NixOS or restart unrelated services.
 
 `update-codex` resolves the latest stable OpenAI Codex CLI archive from npm, updates only its Nix version and SRI hash, and does not activate or commit the change. Review the resulting diff before running `rebuild`.
 
@@ -101,6 +106,19 @@ Graphify is available as a Pipenv-managed, read-only discovery MCP alongside the
 The script performs a forced full extraction so older pre-`#1504` node IDs are replaced, merges the Nix adapter output, and exports HTML. Query it with `pipenv run graphify query "your question"`. Graph output stays in the ignored `graphify-out/` directory, and `.graphifyignore` excludes secrets and assistant configuration. The Nix adapter records source-level imports, flake wiring, and `inputs.<name>` usage without evaluating the flake; Nix remains authoritative and is validated with `nix flake check`.
 
 Graphify is for discovery only. It must not be used to mutate Nix source, ACLs, credentials, or vault plans. Run `pipenv run graphify update .` after source changes when the graph should be refreshed without a full extraction.
+
+## Obsidian Graph Group Helper
+
+`scripts/obsidian_graph_groups.py` is a deterministic helper for the shared Obsidian vault's native `.obsidian/graph.json` color groups. It derives six broad groups from the existing vault map, emits only non-empty categories, preserves unrelated graph settings, detects no-ops, and creates an external byte-for-byte backup before a sync. It does not edit notes, tags, properties, folders, or links. Vault Maintainer invokes it from its scheduled maintenance prompt; the helper is not part of NixOS activation.
+
+```sh
+python3 scripts/obsidian_graph_groups.py plan \
+  --vault /home/yashindo/Git/Obsidian/hermes-default
+python3 scripts/obsidian_graph_groups.py check \
+  --vault /home/yashindo/Git/Obsidian/hermes-default
+```
+
+A real sync must use the approved external backup directory and should be run only after the maintainer's workspace and writer checks pass. The helper owns only `.obsidian/graph.json`'s `colorGroups` key; the rest of the graph configuration remains untouched.
 
 ## Working Rules
 
