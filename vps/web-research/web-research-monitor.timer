@@ -1,0 +1,10 @@
+[Unit]
+Description=Periodic web research capacity check
+
+[Timer]
+OnBootSec=10m
+OnUnitActiveSec=15m
+Persistent=true
+
+[Install]
+WantedBy=timers.target
