@@ -1,0 +1,6 @@
+[Unit]
+Description=Back up VPN-only web research state
+
+[Service]
+Type=oneshot
+ExecStart=/home/yashindo/docker-compose/web-research/backup-web-research.sh
