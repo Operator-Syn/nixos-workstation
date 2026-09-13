@@ -1,0 +1,62 @@
+use_default_settings:
+  engines:
+    keep_only:
+      - arxiv
+      - crossref
+      - openalex
+      - semantic scholar
+      - pubmed
+      - github
+      - bing
+      - brave
+      - duckduckgo
+
+general:
+  debug: false
+  instance_name: "Yashindo VPN Search"
+
+search:
+  formats:
+    - html
+    - json
+  safe_search: 0
+  autocomplete: ""
+
+server:
+  bind_address: "0.0.0.0"
+  port: 8080
+  limiter: true
+  public_instance: false
+  image_proxy: false
+
+valkey:
+  url: valkey://searxng-valkey:6379/0
+
+engines:
+  - name: arxiv
+    engine: arxiv
+    shortcut: ax
+  - name: crossref
+    engine: crossref
+    shortcut: cr
+  - name: openalex
+    engine: openalex
+    shortcut: oa
+  - name: semantic scholar
+    engine: semantic_scholar
+    shortcut: ss
+  - name: pubmed
+    engine: pubmed
+    shortcut: pm
+  - name: github
+    engine: github
+    shortcut: gh
+  - name: duckduckgo
+    engine: duckduckgo
+    shortcut: ddg
+  - name: brave
+    engine: brave
+    shortcut: br
+  - name: bing
+    engine: bing
+    shortcut: bi
