@@ -102,3 +102,31 @@ home/yashindo/plasma/default.nix
 ```
 
 This keeps each app file focused on configuration while the `default.nix` files act as control panels.
+
+## Spotify Playback
+
+The active profile uses `ncspot`, a lightweight terminal Spotify client built
+on the librespot library. It is provisioned from
+`home/yashindo/apps/ncspot.nix` using the flake's pinned
+`nixpkgs-unstable` input. The packaged build includes the PulseAudio backend,
+which routes through Hiraeth's PipeWire-Pulse session. ncspot does not create a
+user service or autostart entry; run `ncspot` in a terminal when playback is
+wanted.
+
+On first run, ncspot opens an OAuth flow in a browser and stores its
+user-owned credentials in its cache. A Spotify Premium account is required.
+See the [ncspot user documentation](https://github.com/hrkfdn/ncspot/blob/main/doc/users.md)
+for the login and configuration flow. Do not place Spotify credentials in this
+repository.
+
+The legacy `spotify`, `spotify-player`, and `spotifyd` modules remain
+available but disabled in the active profile. No official Spotify GUI,
+spotify-player daemon, or spotifyd user service is generated. Existing Spotify
+caches and credentials are not removed automatically; closing already-running
+processes and activating the new Home Manager generation remain user-owned
+steps.
+
+Output selection and mute state remain user-owned PipeWire/WirePlumber state.
+They are intentionally not hard-coded here, so Bluetooth, analog, HDMI, and
+other sinks can be selected from the desktop session without a Home Manager
+change.
