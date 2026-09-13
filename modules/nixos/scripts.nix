@@ -75,6 +75,127 @@
     exec ${pkgs.bash}/bin/bash "$HOME/nix-config/scripts/update_codex.sh" "$@"
   '';
 
+  hermes-restart = pkgs.writeShellScriptBin "hermes-restart" ''
+        set -euo pipefail
+
+        systemctl="${pkgs.systemd}/bin/systemctl"
+        ps="${pkgs.procps}/bin/ps"
+        awk="${pkgs.gawk}/bin/awk"
+        sleep="${pkgs.coreutils}/bin/sleep"
+        nohup="${pkgs.coreutils}/bin/nohup"
+        gateway_unit="hermes-gateway.service"
+
+        usage() {
+          cat >&2 <<'EOF'
+    Usage: hermes-restart [--all|--gateway|--desktop]
+
+      --all      Restart the gateway and restart Desktop if it is already running.
+      --gateway  Restart only the Hermes gateway user service.
+      --desktop  Restart Desktop, starting it if it is currently closed.
+    EOF
+        }
+
+        mode="all"
+        case "''${1:-}" in
+          ""|--all) ;;
+          --gateway) mode="gateway" ;;
+          --desktop) mode="desktop" ;;
+          --help|-h)
+            usage >&1
+            exit 0
+            ;;
+          *)
+            usage
+            exit 2
+            ;;
+        esac
+
+        if [ "$#" -gt 1 ]; then
+          usage
+          exit 2
+        fi
+
+        desktop_pids() {
+          "$ps" -eo pid=,args= | "$awk" '$0 ~ /[e]lectron.*hermes-desktop/ {print $1}'
+        }
+
+        restart_gateway() {
+          if ! "$systemctl" --user cat "$gateway_unit" >/dev/null 2>&1; then
+            echo "Hermes gateway unit not found: $gateway_unit" >&2
+            return 1
+          fi
+
+          echo "Restarting $gateway_unit..."
+          "$systemctl" --user restart "$gateway_unit"
+          if ! "$systemctl" --user is-active --quiet "$gateway_unit"; then
+            echo "Hermes gateway did not become active." >&2
+            "$systemctl" --user --no-pager --full status "$gateway_unit" || true
+            return 1
+          fi
+          echo "Hermes gateway is active."
+        }
+
+        stop_desktop() {
+          local pids
+          pids="$(desktop_pids)"
+          if [ -z "$pids" ]; then
+            return 0
+          fi
+
+          echo "Stopping Hermes Desktop and its local backends..."
+          while IFS= read -r pid; do
+            [ -n "$pid" ] || continue
+            kill -TERM "$pid" 2>/dev/null || true
+          done <<< "$pids"
+
+          for _ in {1..50}; do
+            [ -z "$(desktop_pids)" ] && return 0
+            "$sleep" 0.2
+          done
+
+          echo "Hermes Desktop did not exit cleanly; refusing to launch a duplicate." >&2
+          return 1
+        }
+
+        start_desktop() {
+          local launcher
+          launcher="$(command -v hermes-desktop || true)"
+          if [ -z "$launcher" ]; then
+            echo "hermes-desktop is not available in PATH." >&2
+            return 1
+          fi
+
+          echo "Starting Hermes Desktop..."
+          "$nohup" "$launcher" >/dev/null 2>&1 </dev/null &
+          for _ in {1..50}; do
+            if [ -n "$(desktop_pids)" ]; then
+              echo "Hermes Desktop launch requested."
+              return 0
+            fi
+            "$sleep" 0.2
+          done
+
+          echo "Hermes Desktop did not appear after launch." >&2
+          return 1
+        }
+
+        desktop_was_running=false
+        if [ "$mode" = "all" ] || [ "$mode" = "desktop" ]; then
+          if [ -n "$(desktop_pids)" ]; then
+            desktop_was_running=true
+            stop_desktop
+          fi
+        fi
+
+        if [ "$mode" = "all" ] || [ "$mode" = "gateway" ]; then
+          restart_gateway
+        fi
+
+        if [ "$mode" = "desktop" ] || [ "$desktop_was_running" = true ]; then
+          start_desktop
+        fi
+  '';
+
   rebuild = pkgs.writeShellScriptBin "rebuild" ''
     sudo=/run/wrappers/bin/sudo
     sudo_keepalive_pid=""
@@ -204,6 +325,7 @@
 in {
   environment.systemPackages = [
     getGPU
+    hermes-restart
     nvrun
     rebuild
     update-codex
