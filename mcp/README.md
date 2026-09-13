@@ -100,9 +100,11 @@ not inspect live `/run`, credentials, user homes, or the vault.
 ## Security boundary
 
 All repository paths remain inside the configured repository root. Symlink
-paths, `.git`, `.env*`, private keys, certificate files, and Git
+paths, `.git`, `.env`/`.env.*`, private keys, certificate files, and Git
 pathspec-magic filenames whose normalized path begins with `:` are denied by
-every tool. `secrets/` is denied by all tools except the reviewed
+every tool. The reviewed whole-tree commit path may include the exact public
+template `vps/web-research/.env.example`; all other `.env*` paths remain
+denied. `secrets/` is denied by all tools except the reviewed
 `prepare_working_tree_commit` and `git_commit_working_tree` path, which may
 include secret changes only after an explicit reviewed snapshot. Temporary
 workspaces also exclude denied paths. Prepared operations fail
