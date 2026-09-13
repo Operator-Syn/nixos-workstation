@@ -1,6 +1,7 @@
 {
   pkgs,
   lib,
+  pkgsUnstable,
   ...
 }: let
   # nixpkgs' `codex` builds from source and lags behind upstream's rapid
@@ -68,6 +69,7 @@ in {
     # pipenv
     claude-code
     codex-bin
+    pkgsUnstable.opencode
     ripgrep
     vlc
     zoxide
