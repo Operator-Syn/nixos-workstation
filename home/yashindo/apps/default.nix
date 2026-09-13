@@ -17,6 +17,7 @@
     ./hermes-desktop.nix
     ./latex.nix
     ./libreoffice.nix
+    ./ncspot.nix
     ./obs-studio.nix
     ./obsidian.nix
     ./prisma.nix
@@ -55,8 +56,9 @@
     obsidian.enable = true;
     prisma.enable = true;
     castersoundboard.enable = true;
-    spotify.enable = true;
-    spotifyd.enable = true;
+    ncspot.enable = true;
+    spotify.enable = false;
+    spotifyd.enable = false;
     spotify-player.enable = false;
     ssh.enable = true;
     starship.enable = true;
