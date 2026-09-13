@@ -56,6 +56,7 @@ in {
       ffmpeg-full
       easyeffects
       krita
+      lmstudio
       gamemode
       git
       gnused
@@ -75,12 +76,14 @@ in {
       tcpdump
       tree
       openssl
+      sqlite
       dmidecode
       wl-clipboard
       rustc
       cargo
       clippy
       rustfmt
+      rust-analyzer
 
       kdePackages.partitionmanager
       kdePackages.aurorae
