@@ -1,0 +1,216 @@
+name: web-research
+
+x-firecrawl-env: &firecrawl-env
+  REDIS_URL: redis://firecrawl-redis:6379
+  REDIS_RATE_LIMIT_URL: redis://firecrawl-redis:6379
+  PLAYWRIGHT_MICROSERVICE_URL: http://firecrawl-playwright:3000/scrape
+  POSTGRES_USER: ${FIRECRAWL_POSTGRES_USER}
+  POSTGRES_PASSWORD: ${FIRECRAWL_POSTGRES_PASSWORD}
+  POSTGRES_DB: ${FIRECRAWL_POSTGRES_DB}
+  POSTGRES_HOST: firecrawl-postgres
+  POSTGRES_PORT: 5432
+  USE_DB_AUTHENTICATION: "false"
+  NUM_WORKERS_PER_QUEUE: ${NUM_WORKERS_PER_QUEUE:-2}
+  CRAWL_CONCURRENT_REQUESTS: ${CRAWL_CONCURRENT_REQUESTS:-2}
+  MAX_CONCURRENT_JOBS: ${MAX_CONCURRENT_JOBS:-2}
+  BROWSER_POOL_SIZE: ${BROWSER_POOL_SIZE:-2}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+  MODEL_NAME: ${MODEL_NAME:-}
+  MODEL_EMBEDDING_NAME: ${MODEL_EMBEDDING_NAME:-}
+  OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-}
+  PROXY_SERVER: ${PROXY_SERVER:-}
+  PROXY_USERNAME: ${PROXY_USERNAME:-}
+  PROXY_PASSWORD: ${PROXY_PASSWORD:-}
+  MAX_CPU: ${MAX_CPU:-0.75}
+  MAX_RAM: ${MAX_RAM:-0.75}
+  SCRAPE_MAX_ATTEMPTS: ${SCRAPE_MAX_ATTEMPTS:-3}
+  SEARXNG_ENDPOINT: http://searxng:8080
+  SEARXNG_ENGINES: ${SEARXNG_ENGINES:-duckduckgo,bing,brave}
+  SEARXNG_CATEGORIES: ${SEARXNG_CATEGORIES:-general}
+  NUQ_BACKEND: pg
+  LOGGING_LEVEL: ${LOGGING_LEVEL:-info}
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "3"
+    compress: "true"
+
+services:
+  searxng:
+    image: docker.io/searxng/searxng@sha256:8bc27439bd3e201d493d1b6668c9d67a89b1d669af4d50c6f411b06c4fbc8de2
+    container_name: web-research-searxng
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:9080:8080"
+    environment:
+      SEARXNG_BIND_ADDRESS: 0.0.0.0
+      SEARXNG_PORT: 8080
+      SEARXNG_SECRET: ${SEARXNG_SECRET}
+      SEARXNG_LIMITER: "true"
+      SEARXNG_VALKEY_URL: valkey://searxng-valkey:6379/0
+    volumes:
+      - ./searxng/settings.yml:/etc/searxng/settings.yml:ro
+      - ./searxng/limiter.toml:/etc/searxng/limiter.toml:ro
+      - searxng-cache:/var/cache/searxng
+    depends_on:
+      searxng-valkey:
+        condition: service_healthy
+    networks: [research]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    logging: *logging
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/healthz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+  searxng-valkey:
+    image: docker.io/valkey/valkey@sha256:e55eb7bfbce02957d1a91fb1e26d69aa36eb18f77bf9f86ff6eff81f864b13b7
+    container_name: web-research-searxng-valkey
+    restart: unless-stopped
+    command: ["valkey-server", "--save", "30", "1", "--loglevel", "warning"]
+    volumes: [searxng-valkey-data:/data]
+    networks: [research]
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging: *logging
+
+  firecrawl-playwright:
+    build: ./firecrawl-src/apps/playwright-service-ts
+    container_name: web-research-firecrawl-playwright
+    restart: unless-stopped
+    environment:
+      PORT: 3000
+      MAX_CONCURRENT_PAGES: ${CRAWL_CONCURRENT_REQUESTS:-2}
+      BLOCK_MEDIA: "true"
+      ALLOW_LOCAL_WEBHOOKS: "false"
+      PROXY_SERVER: ${PROXY_SERVER:-}
+      PROXY_USERNAME: ${PROXY_USERNAME:-}
+      PROXY_PASSWORD: ${PROXY_PASSWORD:-}
+    networks: [research]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    cpus: 2.0
+    mem_limit: 2G
+    memswap_limit: 2G
+    logging: *logging
+
+  firecrawl-api:
+    build: ./firecrawl-src/apps/api
+    container_name: web-research-firecrawl-api
+    restart: unless-stopped
+    environment:
+      <<: *firecrawl-env
+      HOST: 0.0.0.0
+      PORT: 3002
+      EXTRACT_WORKER_PORT: 3004
+      WORKER_PORT: 3005
+      NUQ_RABBITMQ_URL: amqp://firecrawl-rabbitmq:5672
+      HARNESS_STARTUP_TIMEOUT_MS: 60000
+      ENV: local
+    ports:
+      - "127.0.0.1:9300:3002"
+    depends_on:
+      firecrawl-redis:
+        condition: service_started
+      firecrawl-playwright:
+        condition: service_started
+      firecrawl-rabbitmq:
+        condition: service_healthy
+      firecrawl-postgres:
+        condition: service_healthy
+      searxng:
+        condition: service_healthy
+    networks: [research]
+    command: ["node", "dist/src/harness.js", "--start-docker"]
+    cpus: 3.0
+    mem_limit: 4G
+    memswap_limit: 4G
+    logging: *logging
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:3002/ >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 90s
+
+  firecrawl-redis:
+    image: redis@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf
+    container_name: web-research-firecrawl-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: [firecrawl-redis-data:/data]
+    networks: [research]
+    logging: *logging
+
+  firecrawl-rabbitmq:
+    image: rabbitmq@sha256:e582c0bc7766f3342496d8485efb5a1df782b5ce3886ad017e2eaae442311f69
+    container_name: web-research-firecrawl-rabbitmq
+    restart: unless-stopped
+    volumes: [firecrawl-rabbitmq-data:/var/lib/rabbitmq]
+    networks: [research]
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_running"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging: *logging
+
+  firecrawl-postgres:
+    build: ./firecrawl-src/apps/nuq-postgres
+    container_name: web-research-firecrawl-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${FIRECRAWL_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${FIRECRAWL_POSTGRES_PASSWORD}
+      POSTGRES_DB: ${FIRECRAWL_POSTGRES_DB}
+    volumes: [firecrawl-postgres-data-v4:/var/lib/postgresql/data]
+    networks: [research]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready --username=$${POSTGRES_USER} --dbname=$${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging: *logging
+
+  firecrawl-mcp:
+    build: ./firecrawl-mcp-src
+    container_name: web-research-firecrawl-mcp
+    restart: unless-stopped
+    environment:
+      FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY}
+      FIRECRAWL_API_URL: http://firecrawl-api:3002
+      HTTP_STREAMABLE_SERVER: "true"
+      HOST: 0.0.0.0
+      PORT: 3000
+      FIRECRAWL_RETRY_MAX_ATTEMPTS: ${FIRECRAWL_RETRY_MAX_ATTEMPTS:-2}
+      FIRECRAWL_RETRY_INITIAL_DELAY: ${FIRECRAWL_RETRY_INITIAL_DELAY:-1000}
+      FIRECRAWL_RETRY_MAX_DELAY: ${FIRECRAWL_RETRY_MAX_DELAY:-5000}
+    ports:
+      - "127.0.0.1:9320:3000"
+    depends_on:
+      firecrawl-api:
+        condition: service_healthy
+    networks: [research]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    logging: *logging
+
+networks:
+  research:
+    name: web_research_internal
+    driver: bridge
+
+volumes:
+  searxng-cache:
+  searxng-valkey-data:
+  firecrawl-redis-data:
+  firecrawl-postgres-data-v4:
+  firecrawl-rabbitmq-data:
