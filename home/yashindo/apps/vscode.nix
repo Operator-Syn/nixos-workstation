@@ -129,6 +129,10 @@ in {
           "nix.serverPath" = "nil";
           "nix.formatterPath" = "alejandra";
 
+          # Use the Nix wrapper so rust-analyzer can load the matching
+          # standard-library sources for the system Rust toolchain.
+          "rust-analyzer.server.path" = "${pkgs.rust-analyzer}/bin/rust-analyzer";
+
           "nix.serverSettings" = {
             nil = {
               diagnostics = {
