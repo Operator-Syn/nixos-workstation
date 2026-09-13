@@ -1,0 +1,6 @@
+[Unit]
+Description=Monitor VPN-only web research capacity and container failures
+
+[Service]
+Type=oneshot
+ExecStart=/home/yashindo/docker-compose/web-research/monitor-web-research.sh
