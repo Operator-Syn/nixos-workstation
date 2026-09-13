@@ -9,6 +9,11 @@ in {
   options.modules.spotifyd.enable = lib.mkEnableOption "Spotifyd";
 
   config = lib.mkIf cfg.enable {
+    # Keep spotifyd available as a manually started Spotify Connect/TUI
+    # endpoint, but do not let it claim the account or audio sink at login.
+    # This prevents the daemon from competing with the graphical Spotify
+    # client. `systemctl --user start spotifyd` remains available when the
+    # TUI path is wanted.
     services.spotifyd = {
       enable = true;
       package = pkgs.spotifyd;
@@ -32,7 +37,7 @@ in {
         initial_volume = 100;
         volume_normalisation = true;
         normalisation_pregain = -5.0;
-        autoplay = true;
+        autoplay = false;
 
         # Cache behavior
         # NixOS already starts spotifyd with --cache-path /var/cache/spotifyd,
@@ -67,6 +72,10 @@ in {
         # proxy = "http://proxy.example.org:8080";
       };
     };
+
+    # Home Manager's spotifyd service is retained for explicit, on-demand
+    # starts, but it is no longer enabled by default.target.
+    systemd.user.services.spotifyd.Install.WantedBy = lib.mkForce [];
 
     # If using a fixed zeroconf_port and you want discovery from other devices:
     # networking.firewall.allowedUDPPorts = [5353];
