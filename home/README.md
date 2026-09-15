@@ -51,6 +51,14 @@ which supplies standard-library sources matching the system Rust toolchain.
 
 General-purpose language runtimes such as Node and Python should usually stay out of `home/yashindo/packages.nix`. Prefer `devshells/` for project-scoped tooling and Distrobox for mutable dependency experiments.
 
+Brave and Discord launch directly on the AMD integrated GPU with no
+GPU-selection dialog. `home/yashindo/apps/brave.nix` keeps the package's own
+desktop entry and `BROWSER=brave`, with no second-profile Brave Work launcher;
+`home/yashindo/apps/discord.nix` keeps the package's own desktop entry and
+autostarts Discord minimized at login without a prompt. `nvidia-offload`
+remains available from a terminal for dedicated-GPU launches, and the Discord
+Professional module stays available but disabled in the active profile.
+
 The Obsidian module exposes `obsidian` (CLI), `obsidian-cli` (compatibility
 name), and `obsidian-desktop` (GUI). The CLI is provisioned at
 `~/.local/bin/obsidian`, and that directory is added to `PATH`; the desktop
