@@ -8,6 +8,7 @@
 
     ../../modules/nixos/core
     ../../modules/nixos/desktop/audio-tools.nix
+    ../../modules/nixos/desktop/camera-privacy.nix
     ../../modules/nixos/desktop/obs-studio.nix
     ../../modules/nixos/desktop/plasma.nix
     ../../modules/nixos/desktop/power-profile-enforcer.nix
@@ -53,6 +54,12 @@
     steam.enable = true;
     bedrock-on-linux.enable = true;
     kvm-manager.enable = true;
+
+    camera-privacy = {
+      enable = true;
+      usbVendor = "2b7e";
+      usbProduct = "b888";
+    };
 
     distrobox.debian-dev.enable = true;
     # debian-container.enable = true;
