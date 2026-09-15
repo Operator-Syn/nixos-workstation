@@ -42,7 +42,7 @@
     audacity.enable = true;
     direnv.enable = true;
     discord.enable = true;
-    discord-pro.enable = true;
+    discord-pro.enable = false;
     fastfetch.enable = true;
     firefox.enable = true;
     fish.enable = true;
