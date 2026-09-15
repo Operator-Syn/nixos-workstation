@@ -12,7 +12,7 @@ These files describe behavior that can be imported by hosts. The `Hiraeth` host 
 modules/
 `-- nixos/
     |-- core/             locale, Nix settings, security, zram
-    |-- desktop/          Plasma, audio, printing, display manager
+    |-- desktop/          Plasma, audio, camera privacy, display manager
     |-- development/      Distrobox and system-level development support
     |-- hardware/         Bluetooth and reusable hardware-related modules
     |-- users/             system user declarations
@@ -34,7 +34,7 @@ modules/
 | Area | Owns |
 | --- | --- |
 | `core/` | Nix settings, locale, sudo, polkit, zram, user-slice OOM protection |
-| `desktop/` | Plasma 6, SDDM, PipeWire, printing, XKB |
+| `desktop/` | Plasma 6, SDDM, PipeWire, printing, XKB, webcam privacy switch |
 | `development/` | Distrobox setup, declared mutable boxes, optional Python support, containers |
 | `hardware/` | Bluetooth and reusable ASUS hardware support |
 | `users/` | system users, shells, groups |
@@ -120,6 +120,19 @@ interface, SSID, and connection-name arguments: `wifi-hotspot [interface] [ssid]
 [connection-name]`. Existing profiles with the chosen name are repaired to AP
 mode when possible.
 
+`desktop/camera-privacy.nix` owns the webcam privacy switch for the USB camera
+declared by `modules.camera-privacy.usbVendor` and
+`modules.camera-privacy.usbProduct`. A blocked camera is a deauthorized USB
+device, so no application can open it even though `uvcvideo` stays loaded. Run
+`camera-privacy` or `camera-privacy toggle` to switch the state, `camera-privacy
+block` and `camera-privacy allow` to set it explicitly, and `camera-privacy
+status` to report it; the Plasma shortcut `Meta+Shift+C` runs the toggle. The
+state lives in `/run/camera-privacy.state` and resets to
+`modules.camera-privacy.blockAtBoot` after each boot, a udev rule re-applies it
+whenever the camera is enumerated again, and a polkit rule scoped to `wheel`
+keeps the toggle passwordless. The OBS virtual camera from `obs-studio.nix` is
+not affected, and none of this is live until the host is activated with `rb`.
+
 `gamemode-toggle` controls a manual GameMode request without changing a game's
 launch options. Run `gamemode-toggle` or `gamemode-toggle toggle` to switch it,
 or use `on`, `off`, and `status` explicitly. This manual request is separate
@@ -134,6 +147,14 @@ outside games, and also applies to the manual `gamemode-toggle` request.
 The same GameMode hooks stop containers that were already running when GameMode
 started, then start those exact containers again when the last client exits. If
 Docker is unavailable or no containers are running, the hook leaves it unchanged.
+
+The `memory-animation-guard.service` runs with each Plasma graphical
+session. It treats `MemAvailable <= 15%` for 30 seconds as sustained
+pressure and suppresses only Plasma animations; it does not activate GameMode,
+change CPU or I/O policy, inhibit the screensaver, or touch Docker. Animations
+return after `MemAvailable >= 25%` for 60 seconds. The guard shares
+animation ownership with GameMode so either active reason keeps animations
+suppressed.
 
 For Steam, the standard per-game launch option is `gamemoderun %command%`. On
 Hiraeth, use `nvrun %command%` when the game should also use NVIDIA PRIME
