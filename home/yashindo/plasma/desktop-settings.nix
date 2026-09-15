@@ -30,5 +30,13 @@
       key = "Ctrl+Shift+X";
       command = "${pkgs.alacritty-graphics}/bin/alacritty";
     };
+
+    # Provided system-wide by modules/nixos/desktop/camera-privacy.nix.
+    hotkeys.commands.camera-privacy = {
+      name = "Toggle webcam privacy";
+      comment = "Block or allow the built-in webcam";
+      key = "Meta+Shift+C";
+      command = "/run/current-system/sw/bin/camera-privacy toggle";
+    };
   };
 }
