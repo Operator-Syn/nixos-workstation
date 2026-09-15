@@ -3,7 +3,7 @@
 This directory owns the Nix package and NixOS module for
 [BedrockOnLinux](https://github.com/Wyze3306/BedrockOnLinux).
 
-The package contains the upstream `v2.2.4` Python/Qt launcher, its Python dependencies,
+The package contains the upstream `v2.2.5` Python/Qt launcher, its Python dependencies,
 the desktop entry, and icon. It does not put the Minecraft game,
 WineGDK/Proton, or UMU in the Nix store. On first use, the launcher downloads
 and verifies the Windows game and its runtime into the per-user BedrockOnLinux
@@ -138,7 +138,7 @@ package manager; that is expected for a read-only Nix installation.
 
 ## Updating the launcher
 
-The flake pins the source-only input to the upstream `v2.2.4` release. To
+The flake pins the source-only input to the upstream `v2.2.5` release. To
 move to a later release, update the tag in `flake.nix`, then refresh and check
 the lockfile:
 
