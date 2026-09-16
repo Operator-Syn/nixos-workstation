@@ -148,14 +148,6 @@ The same GameMode hooks stop containers that were already running when GameMode
 started, then start those exact containers again when the last client exits. If
 Docker is unavailable or no containers are running, the hook leaves it unchanged.
 
-The `memory-animation-guard.service` runs with each Plasma graphical
-session. It treats `MemAvailable <= 15%` for 30 seconds as sustained
-pressure and suppresses only Plasma animations; it does not activate GameMode,
-change CPU or I/O policy, inhibit the screensaver, or touch Docker. Animations
-return after `MemAvailable >= 25%` for 60 seconds. The guard shares
-animation ownership with GameMode so either active reason keeps animations
-suppressed.
-
 For Steam, the standard per-game launch option is `gamemoderun %command%`. On
 Hiraeth, use `nvrun %command%` when the game should also use NVIDIA PRIME
 offload; it combines GameMode with the same PRIME variables as NixOS’s generated
