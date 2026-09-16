@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Off-peak badge for peak-hours notifications: comet-cyan disc from the
+     Scarlet Tree night palette with a dark crescent, matching the desktop
+     widget's off-peak accent. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
+  <circle cx="48" cy="48" r="44" fill="#8ee6e6"/>
+  <path d="M63.6 20A32 32 0 1 0 63.6 76A28 28 0 0 1 63.6 20Z" fill="#161a2e"/>
+</svg>
