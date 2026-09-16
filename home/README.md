@@ -145,3 +145,34 @@ Output selection and mute state remain user-owned PipeWire/WirePlumber state.
 They are intentionally not hard-coded here, so Bluetooth, analog, HDMI, and
 other sinks can be selected from the desktop session without a Home Manager
 change.
+
+## Peak-Hour Reminders
+
+`home/yashindo/apps/peak-hours.nix` owns the weekday electricity-window
+reminders. Peak hours are Monday to Friday, 09:00-12:00 and 14:00-18:00 in the
+system's local time (Asia/Manila, no DST); every other hour, including weekends,
+is off-peak, and holidays are not special-cased. The `peak-hours` command
+reports the current state, renders the desktop widget, sends the current-state
+notification, and prints the full schedule through `status`, `widget`, `notify`,
+and `schedule`. The `widget` form emits rich text for the command output
+plasmoid: an accent-coloured state line, the time to the next change, and a
+progress bar for the current stretch, coloured from the Scarlet Tree night
+wallpaper (comet cyan for off-peak, canopy scarlet for peak). Four user timers start
+`peak-hours-notify.service` at 09:00, 12:00, 14:00, and 18:00 on weekdays so
+each boundary is announced; the notification text is derived from the current
+time, so a reminder that fires late (for example after resuming) describes the
+window that is actually in effect. Each reminder repeats the widget's palette in
+the notification body: a coloured state line above a lavender detail line, with
+the matching badge installed from `home/yashindo/plasma/icons/` as
+`peak-hours-offpeak` or `peak-hours-peak`. Notifications request a three-second
+timeout, which Plasma honours for normal urgency. Setting `PEAK_HOURS_NOW` to
+`"YYYY-MM-DD HH:MM"` pins the clock for tests.
+
+The module also ensures the `com.github.zren.commandoutput` desktop widget from
+`pkgs.plasma-applet-commandoutput` is present, showing the live state and the
+time to the next change; hovering shows the schedule and clicking re-sends the
+current-state notification. A desktop script creates the widget in the top-left
+corner on first use and refreshes its command configuration, but never sets its
+geometry afterwards: move the widget by pressing and holding it before dragging,
+and Plasma keeps that position across reboots and rebuilds while other desktop
+widgets stay untouched.
