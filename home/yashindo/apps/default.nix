@@ -20,6 +20,7 @@
     ./ncspot.nix
     ./obs-studio.nix
     ./obsidian.nix
+    ./peak-hours.nix
     ./prisma.nix
     ./castersoundboard.nix
     ./spotify.nix
@@ -54,6 +55,7 @@
     libreoffice.enable = true;
     obs-studio.enable = true;
     obsidian.enable = true;
+    peak-hours.enable = true;
     prisma.enable = true;
     castersoundboard.enable = true;
     ncspot.enable = true;
