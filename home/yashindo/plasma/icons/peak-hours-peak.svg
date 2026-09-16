@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Peak badge for peak-hours notifications: canopy-scarlet disc from the
+     Scarlet Tree night palette with a dark bolt, matching the desktop widget's
+     peak accent. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
+  <circle cx="48" cy="48" r="44" fill="#f2606f"/>
+  <path d="M54 20 32 52h14l-4 24 22-32H50z" fill="#161a2e"/>
+</svg>
