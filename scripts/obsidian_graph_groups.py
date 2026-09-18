@@ -48,7 +48,21 @@ class GroupDefinition:
 # Keep this list small and tied to the documented vault map. The order is the
 # priority order written to Obsidian, so the more operationally salient groups
 # appear first if a future query overlaps one of these paths.
+#
+# Priority note: a more specific path group is placed before a broader one that
+# contains it, so the specific group wins for matching notes. The
+# "Unreproducible Claims" group is more specific than "Inbox" and appears first,
+# so notes under `00-inbox/needs-review/` are colored red in the graph while the
+# rest of the inbox remains amber. All needs-review items are attention items, so
+# the broader red coloring is intentional; unreproducible-claim notes are also
+# identifiable by their `type: unreproducible-claim` frontmatter.
 GROUP_DEFINITIONS: tuple[GroupDefinition, ...] = (
+    GroupDefinition(
+        "Unreproducible Claims",
+        "path:00-inbox/needs-review",
+        ("00-inbox/needs-review",),
+        "#EF4444",
+    ),
     GroupDefinition("Inbox", "path:00-inbox", ("00-inbox",), "#F59E0B"),
     GroupDefinition(
         "Conversations", "path:01-conversations", ("01-conversations",), "#60A5FA"
