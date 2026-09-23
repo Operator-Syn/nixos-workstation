@@ -79,16 +79,23 @@ gateway, system service, container, custom dashboard token, or declarative
 provider credentials. The Plasma taskbar pin is declared in
 `home/yashindo/plasma/taskbar-panel.nix`. The Hermes flake input follows
 upstream `main`, while `flake.lock` keeps each installed revision
-reproducible until the next explicit flake update.
+reproducible until the next explicit flake update. Home Manager installs the
+application and its Computer Use runtime dependencies, but Hermes owns the
+writable `~/.hermes/config.yaml` and model selection.
 
-Hermes' optional Browser Use and Computer Use integrations use the host runtime
-provided by Hiraeth's Nix configuration. `uv`, AT-SPI, and the X11 input
-libraries are declared systemwide so the Hermes Desktop setup flow can install
-the user-owned Browser Use CLI and `cua-driver` into `~/.hermes` and
-`~/.cua-driver` after activation. Provider credentials, Browser Use cloud
-authentication, and real-browser profile access remain manual and private.
-The desktop uses the default XWayland path; native Wayland and static browser
-CDP endpoints are not configured.
+Hermes' Computer Use dependency group is built into the Nix-managed Hermes
+runtime. Because the Nix environment is immutable, Hermes' lazy-install
+fallback is redirected to the user-writable dedicated cache
+`~/.cache/hermes/computer-use-lazy`; the Desktop launcher exports that target
+before Hermes bootstrap so optional SDK discovery does not try to write to
+`/nix/store`. `uv`, AT-SPI, and the X11 input libraries are declared
+systemwide; `cua-driver` remains a user-owned runtime prerequisite. Provider
+credentials, Browser Use cloud authentication, and real-browser profile access
+remain manual and private. The Hermes launcher explicitly selects native
+Wayland for Electron and enables cua-driver's native Wayland backend; static
+browser CDP endpoints are not configured. Plasma's KDE portal is preferred for
+Wayland screen capture, with GTK as a fallback; the first screen-capture grant
+remains user-owned portal permission state.
 
 ## Does Not Belong Here
 
@@ -101,6 +108,10 @@ CDP endpoints are not configured.
 | Distrobox container declarations | `modules/nixos/development/` |
 | Users and groups | `modules/nixos/users/` |
 | System security settings | `modules/nixos/core/` |
+
+The Home Manager profile also exposes the Nix-provided Docker Buildx plugin in
+`~/.docker/cli-plugins/` so the pinned Compose package can discover it when
+using Bake; activation remains a user-owned step.
 
 ## Toggle Pattern
 
@@ -120,31 +131,31 @@ This keeps each app file focused on configuration while the `default.nix` files 
 
 ## Spotify Playback
 
-The active profile uses `ncspot`, a lightweight terminal Spotify client built
-on the librespot library. It is provisioned from
-`home/yashindo/apps/ncspot.nix` using the flake's pinned
-`nixpkgs-unstable` input. The packaged build includes the PulseAudio backend,
-which routes through Hiraeth's PipeWire-Pulse session. ncspot does not create a
-user service or autostart entry; run `ncspot` in a terminal when playback is
-wanted.
+The active profile uses the stock `pkgs.spotify` package from the flake's
+pinned `nixpkgs` input. It is provisioned by
+`home/yashindo/apps/spotify.nix` and provides the unmodified Spotify desktop
+client.
 
-On first run, ncspot opens an OAuth flow in a browser and stores its
-user-owned credentials in its cache. A Spotify Premium account is required.
-See the [ncspot user documentation](https://github.com/hrkfdn/ncspot/blob/main/doc/users.md)
-for the login and configuration flow. Do not place Spotify credentials in this
-repository.
-
-The legacy `spotify`, `spotify-player`, and `spotifyd` modules remain
-available but disabled in the active profile. No official Spotify GUI,
-spotify-player daemon, or spotifyd user service is generated. Existing Spotify
-caches and credentials are not removed automatically; closing already-running
-processes and activating the new Home Manager generation remain user-owned
-steps.
+The active profile also enables the stock `pkgs.spotifyd` package with its
+original module settings and normal autoplay behavior. No GUI-first or
+manual-only systemd override is applied. `spotify-player` remains disabled.
+Running Spotify and spotifyd at the same time may make them compete for the
+same account or audio device; stop one before handing playback to the other.
+Existing Spotify caches and credentials are not removed automatically; activate
+the new Home Manager generation as a user-owned step. Do not place Spotify
+credentials in this repository.
 
 Output selection and mute state remain user-owned PipeWire/WirePlumber state.
 They are intentionally not hard-coded here, so Bluetooth, analog, HDMI, and
 other sinks can be selected from the desktop session without a Home Manager
 change.
+
+## SOPS Build Toolchain
+
+The locked `sops-nix` source requires Go 1.26 while stable nixpkgs keeps its
+default Go and `buildGoModule` at 1.25. The Home Manager profile therefore
+uses a local package set with `buildGo126Module` and `go_1_26` only for
+`sops-install-secrets`; the system's default Go package remains unchanged.
 
 ## Peak-Hour Reminders
 
