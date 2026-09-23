@@ -17,7 +17,6 @@
     ./hermes-desktop.nix
     ./latex.nix
     ./libreoffice.nix
-    ./ncspot.nix
     ./obs-studio.nix
     ./obsidian.nix
     ./peak-hours.nix
@@ -58,9 +57,8 @@
     peak-hours.enable = true;
     prisma.enable = true;
     castersoundboard.enable = true;
-    ncspot.enable = true;
-    spotify.enable = false;
-    spotifyd.enable = false;
+    spotify.enable = true;
+    spotifyd.enable = true;
     spotify-player.enable = false;
     ssh.enable = true;
     starship.enable = true;
