@@ -9,6 +9,19 @@
     discover
   ];
 
+  # Prefer Plasma's portal implementation for Wayland screen capture and
+  # application permissions. Keep GTK as a fallback for portals Plasma does
+  # not implement.
+  xdg.portal = {
+    enable = true;
+    extraPortals = [
+      pkgs.kdePackages.xdg-desktop-portal-kde
+      pkgs.xdg-desktop-portal-gtk
+    ];
+    config.KDE.default = [ "kde" "gtk" ];
+    config.common.default = [ "kde" "gtk" ];
+  };
+
   security.rtkit.enable = true;
 
   # Plasma exposes this D-Bus service in its power UI. It is the sole owner of
