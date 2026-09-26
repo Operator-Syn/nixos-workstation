@@ -65,15 +65,31 @@ inside that environment. With no allowed `.envrc`, it uses the fallback
 directly. The launcher never approves `.envrc` files; `direnv allow` remains an
 explicit user action.
 
+Fish autosuggestions use muted purple italics to distinguish the proposed
+suffix from text already typed in VS Code and Alacritty terminals. The color
+applies to new Fish sessions after Home Manager activation.
+
 General-purpose language runtimes such as Node and Python should usually stay out of `home/yashindo/packages.nix`. Prefer `devshells/` for project-scoped tooling and Distrobox for mutable dependency experiments.
+
+The desktop owns the writable `~/.config/mimeapps.list`, including browser,
+folder, and app protocol associations. Home Manager does not generate that file:
+desktop applications may update it during a session, so application defaults
+must be set in the desktop on a new profile. Existing MIME preferences and
+older backup files are not changed by this declaration.
+
+LibreOffice uses nixpkgs' canonical `libreoffice-qt` package. The Prisma
+module selects `prisma-engines_7` explicitly; in the pinned 26.05 package set,
+these match the derivations previously reached through compatibility aliases.
 
 Brave and Discord launch directly on the AMD integrated GPU with no
 GPU-selection dialog. `home/yashindo/apps/brave.nix` keeps the package's own
-desktop entry and `BROWSER=brave`, with no second-profile Brave Work launcher;
-`home/yashindo/apps/discord.nix` keeps the package's own desktop entry and
-autostarts Discord minimized at login without a prompt. `nvidia-offload`
-remains available from a terminal for dedicated-GPU launches, and the Discord
-Professional module stays available but disabled in the active profile.
+desktop entry and `BROWSER=brave`, with no second-profile Brave Work launcher.
+Discord's KDE login entry waits until DNS can resolve `discord.com`, then
+starts minimized in the tray; manual launches through the package's application
+entry or command remain immediate. The Nix package disables Discord's host updater so a delayed
+nixpkgs update does not block startup; Discord's own module updates are
+separate. `nvidia-offload` remains available from a terminal for dedicated-GPU
+launches, and the Discord Professional module stays available but disabled.
 
 NetBird's system daemon remains declared in `modules/nixos/netbird.nix`. The
 Home Manager app module installs the matching tray UI and autostarts its
