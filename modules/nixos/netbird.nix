@@ -12,6 +12,9 @@
       package = pkgsUnstable.netbird;
     };
 
+    # Use NetBird's documented fallback for Linux exit-node routing issues.
+    systemd.services.netbird.environment.NB_USE_LEGACY_ROUTING = "true";
+
     environment.systemPackages = [
       pkgsUnstable.netbird
     ];
