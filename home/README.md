@@ -40,6 +40,11 @@ KWin's Blur effect is explicitly disabled in
 `home/yashindo/plasma/desktop-settings.nix` while compositor offscreen-framebuffer
 errors are being investigated; the other configured effects remain unchanged.
 
+Global keyboard shortcuts are user-owned in Plasma System Settings. Plasma
+Manager's `overrideConfig` cleanup is disabled, and Home Manager does not declare
+shortcut bindings, so user changes in `~/.config/kglobalshortcutsrc` persist
+across Nix activations.
+
 VS Code user settings, language-specific formatters, Nix language-server
 configuration, terminal defaults, and trusted schema domains are declared in
 `home/yashindo/apps/vscode.nix`. By default, the declared settings seed a
