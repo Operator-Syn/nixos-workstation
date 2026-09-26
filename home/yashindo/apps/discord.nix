@@ -9,17 +9,17 @@
   config = lib.mkIf config.modules.discord.enable {
     home.packages = [pkgsUnstable.discord];
 
-    # Skip update check and start minimized
+    # Skip update check
     home.file.".config/discord/settings.json".text = builtins.toJSON {
       SKIP_HOST_UPDATE = true;
     };
 
-    # Autostart minimized, with no launcher prompt. The application menu entry
-    # comes from the Discord package itself.
+    # Autostart without minimizing. The application menu entry comes from the
+    # Discord package itself.
     xdg.configFile."autostart/discord.desktop".text = ''
       [Desktop Entry]
       Name=Discord
-      Exec=${lib.getExe pkgsUnstable.discord} --start-minimized
+      Exec=${lib.getExe pkgsUnstable.discord}
       Type=Application
       Categories=Network;InstantMessaging;
       X-GNOME-Autostart-enabled=true
