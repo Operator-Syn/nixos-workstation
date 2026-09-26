@@ -15,13 +15,13 @@
     mesa
     libdrm
     libxcb
-    xorg.libX11
-    xorg.libXi
-    xorg.libXtst
-    xorg.libXdamage
-    xorg.libXcomposite
-    xorg.libXfixes
-    xorg.libXrandr
+    libx11
+    libxi
+    libxtst
+    libxdamage
+    libxcomposite
+    libxfixes
+    libxrandr
     wayland
     libxkbcommon
     nss
@@ -44,6 +44,24 @@
     libavif
     dav1d
   ];
+
+  # Hermes Bot Screen detects host prerequisites by executable on PATH. The
+  # gateway's distro installer does not support NixOS, so declare them here.
+  hermesBotScreenPackages = with pkgs; [
+    tigervnc
+    xfwm4
+    xfce4-panel
+    xfdesktop
+    xfce4-settings
+    xfce4-terminal
+    dbus
+    xauth
+    xdpyinfo
+    setxkbmap
+    xprop
+    xsetroot
+    xset
+  ];
 in {
   imports = [
     ./scripts.nix
@@ -63,7 +81,7 @@ in {
       nix
       ripgrep
       nil
-      nixfmt-rfc-style
+      nixfmt
       uv
       nodejs_24
       bun
@@ -95,5 +113,6 @@ in {
       kdePackages.polkit-kde-agent-1
       kdePackages.qttools
     ]
-    ++ playwrightRuntimePackages;
+    ++ playwrightRuntimePackages
+    ++ hermesBotScreenPackages;
 }
