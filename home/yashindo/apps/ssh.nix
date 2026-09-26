@@ -15,53 +15,47 @@ in {
         enable = true;
         enableDefaultConfig = false;
 
-        matchBlocks = {
+        settings = {
           node1 = {
-            hostname = "node1.internal.netbird-network";
-            user = "yashindo";
-            port = 2016;
-            identityFile = "${config.home.homeDirectory}/.ssh/id_ed25519";
-            identitiesOnly = true;
+            HostName = "node1.internal.netbird-network";
+            User = "yashindo";
+            Port = 2016;
+            IdentityFile = "${config.home.homeDirectory}/.ssh/id_ed25519";
+            IdentitiesOnly = true;
 
-            extraOptions = {
-              PreferredAuthentications = "publickey";
-              PasswordAuthentication = "no";
-            };
+            PreferredAuthentications = "publickey";
+            PasswordAuthentication = "no";
           };
 
           node1-public = {
-            hostname = "51.79.251.21";
-            user = "yashindo";
-            port = 2016;
-            identityFile = "${config.home.homeDirectory}/.ssh/id_ed25519";
-            identitiesOnly = true;
+            HostName = "51.79.251.21";
+            User = "yashindo";
+            Port = 2016;
+            IdentityFile = "${config.home.homeDirectory}/.ssh/id_ed25519";
+            IdentitiesOnly = true;
 
-            extraOptions = {
-              PreferredAuthentications = "publickey";
-              PasswordAuthentication = "no";
-            };
+            PreferredAuthentications = "publickey";
+            PasswordAuthentication = "no";
           };
 
           node1-gil = {
-            hostname = "node1.internal.netbird-network";
-            user = "gil";
-            port = 2016;
-            identityFile = "${config.home.homeDirectory}/.ssh/id_ed25519";
-            identitiesOnly = true;
+            HostName = "node1.internal.netbird-network";
+            User = "gil";
+            Port = 2016;
+            IdentityFile = "${config.home.homeDirectory}/.ssh/id_ed25519";
+            IdentitiesOnly = true;
 
-            extraOptions = {
-              PreferredAuthentications = "publickey";
-              PasswordAuthentication = "no";
-            };
+            PreferredAuthentications = "publickey";
+            PasswordAuthentication = "no";
           };
 
           "*" = {
-            addKeysToAgent = "yes";
-            compression = true;
-            identityFile = "${config.home.homeDirectory}/.ssh/id_ed25519";
-            identitiesOnly = false;
-            serverAliveInterval = 60;
-            serverAliveCountMax = 3;
+            AddKeysToAgent = "yes";
+            Compression = true;
+            IdentityFile = "${config.home.homeDirectory}/.ssh/id_ed25519";
+            IdentitiesOnly = false;
+            ServerAliveInterval = 60;
+            ServerAliveCountMax = 3;
           };
         };
       };
