@@ -18,7 +18,6 @@ in {
 
     services.asusd = {
       enable = true;
-      enableUserService = true;
     };
 
     # The packaged asusd unit has no [Install] section, so merely adding its
