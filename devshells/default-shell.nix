@@ -7,7 +7,7 @@ in
       alejandra
       git
       nil
-      nixfmt-rfc-style
+      nixfmt
       pkg-config
       tree
     ];
