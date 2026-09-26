@@ -9,6 +9,70 @@
   cfg = config.modules.vscode;
   settingsPath = "${config.xdg.configHome}/Code/User/settings.json";
   stagedSettingsPath = "${config.xdg.configHome}/Code/User/.settings.json.hm-staged";
+  vscodeBasePackage = pkgsUnstable.vscode.override {
+    commandLineArgs = "--ozone-platform=x11";
+  };
+  vscodePackage = vscodeBasePackage.overrideAttrs (old: {
+    postFixup =
+      (old.postFixup or "")
+      + ''
+        ${pkgs.python3}/bin/python3 - "$out/lib/vscode/resources/app/extensions/copilot/dist/extension.js" <<'PY'
+        from pathlib import Path
+        import sys
+
+        extension = Path(sys.argv[1])
+        source = extension.read_text()
+        replacements = (
+            (
+                "await dO.promises.copyFile(yr(__dirname,fZt),yr(r,fZt))",
+                "await dO.promises.copyFile(yr(__dirname,fZt),yr(r,fZt)),await dO.promises.chmod(yr(r,fZt),0o644)",
+            ),
+            (
+                "await pz.promises.copyFile(yr(__dirname,son),yr(n,son))",
+                "await pz.promises.copyFile(yr(__dirname,son),yr(n,son)),await pz.promises.chmod(yr(n,son),0o644)",
+            ),
+        )
+        for old, new in replacements:
+            if source.count(old) != 1:
+                raise SystemExit(f"Expected one Copilot shim copy operation: {old}")
+            source = source.replace(old, new, 1)
+        extension.write_text(source)
+        PY
+      '';
+  });
+  rustAnalyzerLauncher = pkgs.writeShellApplication {
+    name = "rust-analyzer-project-env";
+    runtimeInputs = [pkgs.bash pkgs.coreutils pkgs.direnv];
+    text = ''
+      fallback='${pkgs.rust-analyzer}/bin/rust-analyzer'
+      workspace_dir="$(pwd -P)"
+      current_dir="$workspace_dir"
+      has_envrc=false
+
+      while [[ "$current_dir" != "/" ]]; do
+        if [[ -f "$current_dir/.envrc" ]]; then
+          has_envrc=true
+          break
+        fi
+        current_dir="$(dirname "$current_dir")"
+      done
+
+      if [[ "$has_envrc" == true ]] \
+        && direnv exec "$workspace_dir" true >/dev/null 2>&1; then
+        project_rust_analyzer="$(
+          direnv exec "$workspace_dir" bash -c 'command -v rust-analyzer' 2>/dev/null || true
+        )"
+
+        if [[ -n "$project_rust_analyzer" && -x "$project_rust_analyzer" ]]; then
+          exec direnv exec "$workspace_dir" "$project_rust_analyzer" "$@"
+        fi
+
+        exec direnv exec "$workspace_dir" "$fallback" "$@"
+      fi
+
+      exec "$fallback" "$@"
+    '';
+  };
 in {
   options.modules.vscode = {
     enable = lib.mkEnableOption "VS Code";
@@ -55,7 +119,7 @@ in {
 
     programs.vscode = {
       enable = true;
-      package = pkgsUnstable.vscode;
+      package = vscodePackage;
       mutableExtensionsDir = true;
 
       profiles.default = {
@@ -129,9 +193,11 @@ in {
           "nix.serverPath" = "nil";
           "nix.formatterPath" = "alejandra";
 
-          # Use the Nix wrapper so rust-analyzer can load the matching
-          # standard-library sources for the system Rust toolchain.
-          "rust-analyzer.server.path" = "${pkgs.rust-analyzer}/bin/rust-analyzer";
+          # Prefer the workspace's approved direnv environment so Rust
+          # Analyzer, Cargo, and rustc come from the same project dev shell.
+          # Fall back to the Nix-managed system binary when no usable .envrc
+          # applies; the launcher never approves an environment itself.
+          "rust-analyzer.server.path" = "${rustAnalyzerLauncher}/bin/rust-analyzer-project-env";
 
           "nix.serverSettings" = {
             nil = {
