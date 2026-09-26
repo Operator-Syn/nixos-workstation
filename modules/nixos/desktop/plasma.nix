@@ -56,6 +56,20 @@
           "device.restore-profile" = false;
         };
 
+        # Use the selected output's volume for Spotify instead of restoring a
+        # separate saved Music stream volume. Other apps keep their own state.
+        "stream.rules" = [
+          {
+            matches = [
+              {
+                "application.name" = "spotify";
+                "media.class" = "Stream/Output/Audio";
+              }
+            ];
+            actions."update-props"."state.restore-props" = false;
+          }
+        ];
+
         # Hiraeth has a separate external microphone. Avoid HFP/HSP and AAC
         # renegotiation, which can make Bluetooth playback transports flap
         # when audio is paused and resumed.
