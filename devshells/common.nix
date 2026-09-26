@@ -23,11 +23,11 @@ in rec {
     mesa
     libdrm
     libxcb
-    xorg.libX11
-    xorg.libXdamage
-    xorg.libXcomposite
-    xorg.libXfixes
-    xorg.libXrandr
+    libx11
+    libxdamage
+    libxcomposite
+    libxfixes
+    libxrandr
     wayland
     libxkbcommon
     nss
