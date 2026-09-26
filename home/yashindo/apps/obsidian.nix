@@ -50,6 +50,7 @@
     exec "${obsidian}/libexec/obsidian/obsidian" \
       "${obsidian}/share/obsidian/app.asar" \
       "''${ozone_args[@]}" \
+      --disable-gpu \
       "$@"
   '';
 in {
