@@ -6,6 +6,7 @@
     ./magic-lamp.nix
     ./prevent-sleep.nix
     ./session-manager/session-manager.nix
+    ./shortcuts.nix
     ./taskbar-panel.nix
     ./wallpaper/scarlet-tree.nix
     ./window-decoration/layan.nix
