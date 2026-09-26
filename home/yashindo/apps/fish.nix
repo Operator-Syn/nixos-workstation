@@ -10,6 +10,8 @@
       enable = true;
       interactiveShellInit = ''
         set -g fish_greeting ""
+        # Keep Fish's suggested suffix distinct from text already typed.
+        set -g fish_color_autosuggestion 9B83D1 --italics
         # Enable Vi keybindings if you prefer them over Emacs style
         fish_vi_key_bindings
         # Fix TERM only if it's invalid in containers
