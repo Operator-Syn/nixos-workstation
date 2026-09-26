@@ -210,7 +210,7 @@ in {
       lutris
       mangohud
       protonup-qt
-      wineWowPackages.waylandFull
+      wineWow64Packages.waylandFull
       winetricks
       cabextract
       p7zip
