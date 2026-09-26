@@ -40,10 +40,42 @@ KWin's Blur effect is explicitly disabled in
 `home/yashindo/plasma/desktop-settings.nix` while compositor offscreen-framebuffer
 errors are being investigated; the other configured effects remain unchanged.
 
-Global keyboard shortcuts are user-owned in Plasma System Settings. Plasma
-Manager's `overrideConfig` cleanup is disabled, and Home Manager does not declare
-shortcut bindings, so user changes in `~/.config/kglobalshortcutsrc` persist
-across Nix activations.
+Global keyboard shortcuts have a semi-declarative starting point in
+`home/yashindo/plasma/shortcuts.nix`. Two pieces must both be in place for a
+starter binding to work:
+
+| Piece | Location | Written by |
+| --- | --- | --- |
+| Action definitions | `~/.local/share/kglobalaccel/plasma-manager-commands.desktop` | Home Manager (`home.file`) |
+| Starter bindings | `~/.config/kglobalshortcutsrc`, group `[services][plasma-manager-commands.desktop]` | Seeded by activation, then user-owned |
+
+The desktop entry name matters: KGlobalAccelD discovers service components by
+scanning `<data dir>/kglobalaccel/*.desktop` and maps each file's `Actions` to
+shortcut actions. The same mechanism provides Spectacle's, Dolphin's and
+Konsole's application shortcuts. Do not move this file back to
+`share/applications` or generate it with `xdg.desktopEntries`; those publish it
+as a profile package that KGlobalAccelD does not read for actions, which is why
+an earlier declaration of these shortcuts never bound anything.
+
+The starter actions are open Alacritty on `Ctrl+Shift+X` and toggle webcam
+privacy on `Meta+Shift+C`. Each binding is seeded only when that action is
+missing from the shortcut file. After the first activation, Plasma owns the
+file: changing or clearing a starter binding in System Settings is not rewritten
+by Home Manager. `programs.plasma.overrideConfig` remains disabled.
+
+Bindings attach at session start, because KGlobalAccelD runs inside
+`kwin_wayland` on this Plasma release and reads the component files once when it
+starts. After the first activation that installs the desktop entry, log out and
+back in. Until then the seeded keys exist in the file but are not attached to an
+action, so pressing them does nothing.
+
+To branch out without editing this repository, use Plasma System Settings →
+Shortcuts → Global Shortcuts → Add New → Command or Script…. KDE stores the
+action as a user-owned desktop file plus its binding in the shortcut
+configuration; both survive reboots, Home Manager activations, and NixOS
+rebuilds. Keep the starter module free of `programs.plasma.hotkeys`
+declarations; that interface is declarative and rewrites every binding it
+declares on each activation.
 
 VS Code user settings, language-specific formatters, Nix language-server
 configuration, terminal defaults, and trusted schema domains are declared in
