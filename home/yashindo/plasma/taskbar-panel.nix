@@ -21,7 +21,7 @@
 
     programs.plasma = {
       enable = true;
-      overrideConfig = true;
+      overrideConfig = false;
       panels = [
         {
           location = "bottom";
