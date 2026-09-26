@@ -1,4 +1,4 @@
-{pkgs, ...}: {
+{...}: {
   programs.plasma = {
     # Disable KWin's blur effect while investigating offscreen framebuffer errors.
     kwin.effects.blur.enable = false;
@@ -23,20 +23,5 @@
         };
       }
     ];
-
-    hotkeys.commands.open-alacritty = {
-      name = "Open Alacritty";
-      comment = "Open Alacritty";
-      key = "Ctrl+Shift+X";
-      command = "${pkgs.alacritty-graphics}/bin/alacritty";
-    };
-
-    # Provided system-wide by modules/nixos/desktop/camera-privacy.nix.
-    hotkeys.commands.camera-privacy = {
-      name = "Toggle webcam privacy";
-      comment = "Block or allow the built-in webcam";
-      key = "Meta+Shift+C";
-      command = "/run/current-system/sw/bin/camera-privacy toggle";
-    };
   };
 }
