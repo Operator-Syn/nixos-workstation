@@ -17,6 +17,7 @@
     ./hermes-desktop.nix
     ./latex.nix
     ./libreoffice.nix
+    ./netbird.nix
     ./obs-studio.nix
     ./obsidian.nix
     ./peak-hours.nix
@@ -52,6 +53,7 @@
     hermes-desktop.enable = true;
     latex.enable = true;
     libreoffice.enable = true;
+    netbird.enable = true;
     obs-studio.enable = true;
     obsidian.enable = true;
     peak-hours.enable = true;
