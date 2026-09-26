@@ -46,8 +46,19 @@ configuration, terminal defaults, and trusted schema domains are declared in
 writable `~/.config/Code/User/settings.json`; imperative edits are retained
 and take precedence over declarative defaults. Set
 `modules.vscode.mutableUserSettings = false` for a fully Home Manager-managed
-(read-only) settings file. Rust Analyzer is pointed at the Nix-provided wrapper,
-which supplies standard-library sources matching the system Rust toolchain.
+(read-only) settings file.
+After repeated native-Wayland renderer `SIGILL` crashes, VS Code is configured
+to launch through XWayland as a scoped mitigation. KDE itself remains on
+Wayland. The package also adjusts the built-in Copilot extension's shim-copy
+permissions so its files under writable user storage remain replaceable despite
+the Nix-store source being read-only.
+Rust Analyzer uses a Nix-managed launcher that
+checks the current workspace's nearest `.envrc`. For an allowed environment,
+it prefers the project's `rust-analyzer` and runs it with that environment; if
+the environment has no Rust Analyzer binary, it runs the Nix-managed fallback
+inside that environment. With no allowed `.envrc`, it uses the fallback
+directly. The launcher never approves `.envrc` files; `direnv allow` remains an
+explicit user action.
 
 General-purpose language runtimes such as Node and Python should usually stay out of `home/yashindo/packages.nix`. Prefer `devshells/` for project-scoped tooling and Distrobox for mutable dependency experiments.
 
@@ -58,6 +69,11 @@ desktop entry and `BROWSER=brave`, with no second-profile Brave Work launcher;
 autostarts Discord minimized at login without a prompt. `nvidia-offload`
 remains available from a terminal for dedicated-GPU launches, and the Discord
 Professional module stays available but disabled in the active profile.
+
+NetBird's system daemon remains declared in `modules/nixos/netbird.nix`. The
+Home Manager app module installs the matching tray UI and autostarts its
+packaged desktop entry with the KDE session; this starts the interface at login
+while leaving tunnel startup to the system service. Its Linux notifications request a three-second timeout without changing other applications.
 
 The Obsidian module exposes `obsidian` (CLI), `obsidian-cli` (compatibility
 name), and `obsidian-desktop` (GUI). The CLI is provisioned at
@@ -82,6 +98,13 @@ upstream `main`, while `flake.lock` keeps each installed revision
 reproducible until the next explicit flake update. Home Manager installs the
 application and its Computer Use runtime dependencies, but Hermes owns the
 writable `~/.hermes/config.yaml` and model selection.
+
+Hiraeth's NixOS package set also declares the host binaries Hermes Bot Screen
+needs. Once that system generation is activated, Hermes can detect TigerVNC,
+the minimal Xfce components, and its X11 helpers without using a distro package
+manager. Hermes starts the profile's desktop on demand and uses a private Unix
+socket; the separate Chromium browser dock is optional and is not installed by
+this screen support.
 
 Hermes' Computer Use dependency group is built into the Nix-managed Hermes
 runtime. Because the Nix environment is immutable, Hermes' lazy-install
