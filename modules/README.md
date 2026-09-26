@@ -101,6 +101,14 @@ by Hermes' optional Browser Use and Computer Use integrations: `uv`,
 `at-spi2-core`, `xorg.libXi`, and `xorg.libXtst`. Hermes Desktop installs the
 Browser Use CLI and `cua-driver` into user-owned state when their tool settings
 are enabled; Nix activation does not download those binaries or credentials.
+
+The system package set also provides the host prerequisites for Hermes Bot
+Screen: TigerVNC's `Xvnc`, the minimal Xfce components, D-Bus session support,
+and the required X11 helpers. The NixOS gateway's screen installer cannot use
+apt/dnf/pacman, so these tools are supplied by the NixOS generation instead.
+Hermes starts a per-profile Xfce desktop only on demand and serves its display
+through a private Unix socket; this adds no boot-time VNC service or TCP
+listener. Chromium remains optional for the Bot Screen browser dock.
 Hiraeth remains on the default XWayland path, and no static Chrome/Brave CDP
 endpoint is declared.
 
