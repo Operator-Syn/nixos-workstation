@@ -35,6 +35,11 @@ hosts/
 | Imports | selecting reusable modules from `modules/nixos/` |
 | Services | NetBird and OpenSSH |
 
+`hiraeth` enables the 1Password GUI and CLI through NixOS's
+`programs._1password-gui` and `programs._1password` modules. These install the
+desktop app and the `op` command with their respective helper wrappers;
+activation is a separate user-owned NixOS rebuild step.
+
 The host enables OpenSSH through `modules.openssh.enable`. The server accepts
 public-key authentication while disabling password, keyboard-interactive, and
 root login. User-level SSH client configuration and its optional private key
