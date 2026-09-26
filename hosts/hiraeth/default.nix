@@ -35,6 +35,13 @@
 
   nix.settings = inputs.aagl.nixConfig;
 
+  programs._1password-gui = {
+    enable = true;
+    polkitPolicyOwners = ["yashindo"];
+  };
+
+  programs._1password.enable = true;
+
   networking.hostName = "Hiraeth";
 
   # Keep zram first, then spill to NVMe-backed swap before a global OOM.
