@@ -15,13 +15,13 @@
     mesa
     libdrm
     libxcb
-    xorg.libX11
-    xorg.libXi
-    xorg.libXtst
-    xorg.libXdamage
-    xorg.libXcomposite
-    xorg.libXfixes
-    xorg.libXrandr
+    libx11
+    libxi
+    libxtst
+    libxdamage
+    libxcomposite
+    libxfixes
+    libxrandr
     wayland
     libxkbcommon
     nss
