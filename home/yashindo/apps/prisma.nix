@@ -4,7 +4,7 @@
   config,
   ...
 }: let
-  prismaEngines = pkgs.prisma-engines;
+  prismaEngines = pkgs.prisma-engines_7;
 in {
   options.modules.prisma.enable = lib.mkEnableOption "Prisma engines";
 
