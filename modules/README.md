@@ -39,14 +39,19 @@ modules/
 | `hardware/` | Bluetooth and reusable ASUS hardware support |
 | `users/` | system users, shells, groups |
 | `bedrock-on-linux/` | BedrockOnLinux launcher package and NixOS module |
- | `netbird.nix` | NetBird VPN client |
+ | `netbird.nix` | NetBird VPN client with legacy Linux routing workaround |
 | `ollama.nix` | optional local Ollama service; currently not enabled by Hiraeth |
 | `openssh.nix` | OpenSSH server with password and root login disabled |
 | `packages.nix` | system-wide packages |
 | `scripts.nix` | `rebuild`, `hermes-restart`, `update-system`, `update-codex`, `update-hardware`, `wifi-hotspot`, `nvrun`, `getGPU` |
 | `steam.nix` and `steam/` | Steam, GameMode (including `gamemode-toggle`), gamescope, launchers, and Protontricks support |
 | `kvm-manager.nix` | KVM/libvirt services, default network startup, and virt-manager |
-| `virtualisation.nix` | Docker service |
+| `virtualisation.nix` | Docker daemon, started on demand through socket activation |
+
+The NetBird daemon enables `NB_USE_LEGACY_ROUTING=true`, NetBird's Linux
+fallback for exit-node routing issues. After activation, verify exit-node
+connectivity with the temporary relay host route removed. This is a client-side
+setting and does not configure the exit node on node1.
 
 The desktop module removes a stale `/run/avahi-daemon/pid` marker immediately
 before Avahi starts. This handles a dead runtime PID left by a prior service
