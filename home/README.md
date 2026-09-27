@@ -131,8 +131,10 @@ while leaving tunnel startup to the system service. Its Linux notifications requ
 The Obsidian module exposes `obsidian` (CLI), `obsidian-cli` (compatibility
 name), and `obsidian-desktop` (GUI). The CLI is provisioned at
 `~/.local/bin/obsidian`, and that directory is added to `PATH`; the desktop
-application must be running for CLI commands to work. The private Electron
-runtime is named `obsidian` internally so Obsidian's CLI registration check does
+application must be running for CLI commands to work. The desktop
+launcher runs through NixOS's `nvidia-offload` helper and leaves Electron GPU
+rendering enabled, requesting PRIME offload to NVIDIA on Hiraeth. The private
+Electron runtime is named `obsidian` internally so Obsidian's CLI registration check does
 not see plain Electron, but that GUI executable is not exposed as the user-facing
 `obsidian` command. The flake-locked runtime disables Obsidian's self-updater and
 cleans user updater `.asar` artifacts during activation. On KDE, the desktop
@@ -175,9 +177,15 @@ systemwide; `cua-driver` remains a user-owned runtime prerequisite. Provider
 credentials, Browser Use cloud authentication, and real-browser profile access
 remain manual and private. The Hermes launcher explicitly selects native
 Wayland for Electron and enables cua-driver's native Wayland backend; static
-browser CDP endpoints are not configured. Plasma's KDE portal is preferred for
-Wayland screen capture, with GTK as a fallback; the first screen-capture grant
-remains user-owned portal permission state.
+browser CDP endpoints are not configured. The launcher also sets
+`HERMES_DESKTOP_NVIDIA_SWIFTSHADER=0`, which keeps upstream's NVIDIA-driver
+guard from routing ANGLE through SwiftShader on this hybrid AMD iGPU + NVIDIA
+host, so the Electron GPU process keeps hardware acceleration instead of
+software-rasterising the UI. Restore the value `1` to re-enable the SwiftShader
+fallback if the desktop GPU process starts crashing. The generated launcher
+runs Electron through NixOS's `nvidia-offload` helper to request NVIDIA PRIME
+rendering. Plasma's KDE portal is preferred for Wayland screen capture, with GTK as a fallback; the first
+screen-capture grant remains user-owned portal permission state.
 
 ## Does Not Belong Here
 
