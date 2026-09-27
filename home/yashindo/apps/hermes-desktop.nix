@@ -11,11 +11,52 @@
       computerUseLazyTarget = "${config.home.homeDirectory}/.cache/hermes/computer-use-lazy";
       hermesManagedMarker = "${config.services.hermes-agent.hermesHome}/.managed";
 
+      # Nix seals the Python environment in /nix/store. Prevent Hermes' service
+      # refresh from publishing launchers beside that environment; its service
+      # unit can invoke the store Python launcher directly instead.
+      hermesCliPackage =
+        (config.services.hermes-agent.package.override {
+          extraDependencyGroups = config.services.hermes-agent.extraDependencyGroups;
+          extraPythonPackages = config.services.hermes-agent.extraPythonPackages;
+        }).overrideAttrs (old: {
+          postInstall =
+            (old.postInstall or "")
+            + ''
+              launcherShim="$out/lib/hermes-nix-launcher"
+              mkdir -p "$launcherShim"
+              cat > "$launcherShim/sitecustomize.py" <<'PY'
+              import json
+              import os
+              from pathlib import Path
+
+              try:
+                  install_root = Path(os.environ["HERMES_INSTALL_ROOT"]).resolve()
+                  stamp = json.loads((install_root / "install-stamp.json").read_text())
+              except (KeyError, OSError, ValueError):
+                  stamp = {}
+
+              if stamp.get("updateMechanism") == "external" and Path("/nix/store") in install_root.parents:
+                  from hermes_cli import _launchers, venv_sync
+
+                  _launchers.resolve_store_python = lambda _repo_root: None
+                  venv_sync.check_runtime = lambda _project_root: None
+              PY
+
+              for command in hermes hermes-agent hermes-acp; do
+                if [ -x "$out/bin/$command" ]; then
+                  mv "$out/bin/$command" "$out/bin/$command-unwrapped"
+                  makeWrapper "$out/bin/$command-unwrapped" "$out/bin/$command" --prefix PYTHONPATH : "$launcherShim"
+                fi
+              done
+            '';
+        });
+
+
       # Hermes' bootstrap adds the lazy target to sys.path before it imports
       # optional SDKs. A GUI launcher does not inherit shell variables, and the
       # target is loaded from ~/.hermes/.env too late for that bootstrap step.
       # Patch the generated launcher so the value is present at process start.
-      desktopPackage = config.programs.hermes-agent.package.hermesDesktop.overrideAttrs (old: {
+      desktopPackage = hermesCliPackage.hermesDesktop.overrideAttrs (old: {
         postInstall =
           (old.postInstall or "")
           + ''
@@ -80,6 +121,7 @@
       '';
 
       programs.hermes-agent.enable = true;
+      programs.hermes-agent.package = hermesCliPackage;
       programs.hermes-agent.desktop = {
         enable = true;
         package = desktopPackage;
