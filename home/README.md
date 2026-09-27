@@ -152,6 +152,12 @@ reproducible until the next explicit flake update. Home Manager installs the
 application and its Computer Use runtime dependencies, but Hermes owns the
 writable `~/.hermes/config.yaml` and model selection.
 
+The Nix-wrapped CLI treats its sealed Python environment and PATH tools as
+externally managed. Gateway unit refreshes invoke the store Python directly,
+without writing launchers into `/nix/store` or running Hermes PM reconciliation
+for tools supplied by Nix. Gateway installation and service state remain
+user-owned and are not activated by this module.
+
 Hiraeth's NixOS package set also declares the host binaries Hermes Bot Screen
 needs. Once that system generation is activated, Hermes can detect TigerVNC,
 the minimal Xfce components, and its X11 helpers without using a distro package
