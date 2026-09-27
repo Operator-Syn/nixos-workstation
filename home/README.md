@@ -173,19 +173,36 @@ fallback is redirected to the user-writable dedicated cache
 `~/.cache/hermes/computer-use-lazy`; the Desktop launcher exports that target
 before Hermes bootstrap so optional SDK discovery does not try to write to
 `/nix/store`. `uv`, AT-SPI, and the X11 input libraries are declared
-systemwide; `cua-driver` remains a user-owned runtime prerequisite. Provider
-credentials, Browser Use cloud authentication, and real-browser profile access
-remain manual and private. The Hermes launcher explicitly selects native
-Wayland for Electron and enables cua-driver's native Wayland backend; static
-browser CDP endpoints are not configured. The launcher also sets
-`HERMES_DESKTOP_NVIDIA_SWIFTSHADER=0`, which keeps upstream's NVIDIA-driver
-guard from routing ANGLE through SwiftShader on this hybrid AMD iGPU + NVIDIA
-host, so the Electron GPU process keeps hardware acceleration instead of
-software-rasterising the UI. Restore the value `1` to re-enable the SwiftShader
-fallback if the desktop GPU process starts crashing. The generated launcher
-runs Electron through NixOS's `nvidia-offload` helper to request NVIDIA PRIME
-rendering. Plasma's KDE portal is preferred for Wayland screen capture, with GTK as a fallback; the first
-screen-capture grant remains user-owned portal permission state.
+systemwide. The built-in browser uses Hermes PM's pinned `agent-browser` CLI and
+Chromium; Nix declares their required system libraries. The Hermes launcher
+points Hermes at the existing user-owned `~/.local/bin/cua-driver`, and Hermes
+PM keeps the browser tools in user-owned state. A Home Manager desktop entry,
+`Hermes Browser (CDP)`, launches Google Chrome with the separate persistent
+profile `~/.local/share/hermes-cdp-profile` and remote debugging bound to
+`127.0.0.1:9222`. Sign in to accounts manually in that profile; its cookies and
+sessions remain local. Hermes points its built-in browser/CDP tools at that
+endpoint. With `browser.backend: off`, the built-in browser mode stays active.
+The Browser Use CLI is installed through Hermes' package manager and can be
+selected as an alternate mode; it replaces the built-in `browser` and
+`browser-cdp` toolsets while selected. Doctor reports this expected mode
+selection as inactive instead of a missing system dependency. The A2A platform
+is enabled for inbound localhost use on `127.0.0.1:9900`; outbound peers and
+remote inbound access are not configured. Gateway installation, restart, and
+service state remain user-owned. Provider credentials and Browser Use cloud
+authentication remain manual and private. The generated Hermes Desktop launcher
+exports the CDP and loopback A2A endpoints; these launcher and desktop-entry
+changes take effect after Home Manager activation. The Hermes launcher
+explicitly selects native Wayland for Electron and enables cua-driver's native
+Wayland backend. It sets `HERMES_DESKTOP_NVIDIA_SWIFTSHADER=0` because Hermes'
+NVIDIA 580+ driver guard would otherwise route ANGLE through SwiftShader even
+with the AMD integrated GPU selected. This keeps rendering on the AMD hardware
+path without forcing NVIDIA PRIME offload; the change takes effect after Home
+Manager activation and restarting Hermes Desktop. The packaged renderer also
+reuses a live assistant bubble if a transcript refresh replaces its local
+stream ID, and rebases an unsent message onto newer stored history before
+submitting it. Plasma's KDE portal is preferred
+for Wayland screen capture, with GTK as a fallback; the first screen-capture
+grant remains user-owned portal permission state.
 
 ## Does Not Belong Here
 
