@@ -47,10 +47,10 @@
       )
     fi
 
-    exec "${obsidian}/libexec/obsidian/obsidian" \
+    # Use the host's PRIME helper and keep Electron's GPU process enabled.
+    exec nvidia-offload "${obsidian}/libexec/obsidian/obsidian" \
       "${obsidian}/share/obsidian/app.asar" \
       "''${ozone_args[@]}" \
-      --disable-gpu \
       "$@"
   '';
 in {
