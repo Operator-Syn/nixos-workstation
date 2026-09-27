@@ -51,7 +51,6 @@
             '';
         });
 
-
       # Hermes' bootstrap adds the lazy target to sys.path before it imports
       # optional SDKs. A GUI launcher does not inherit shell variables, and the
       # target is loaded from ~/.hermes/.env too late for that bootstrap step.
@@ -77,6 +76,26 @@
             if "--ozone-platform=wayland" not in lines[exec_index + 4]:
                 lines[exec_index + 4] = lines[exec_index + 4].replace(
                     ' "$@"', ' --ozone-platform=wayland "$@"', 1
+                )
+            # The desktop app routes ANGLE through SwiftShader as soon as the
+            # NVIDIA driver major is >= 580 (upstream #40077), which disables
+            # hardware acceleration entirely. This host is a hybrid AMD iGPU +
+            # NVIDIA 615 machine, so that guard fires on every launch and the
+            # GPU process software-rasterises the whole UI. Chromium already
+            # composites on the AMD render node here, so opt out and keep the
+            # launcher on hardware acceleration. Set this to 1 to restore the
+            # SwiftShader fallback if the GPU process crashes.
+            exec_index = next(
+                index for index, line in enumerate(lines) if line.lstrip().startswith("exec ")
+            )
+            lines.insert(exec_index, "export HERMES_DESKTOP_NVIDIA_SWIFTSHADER=0\n")
+            # Request NVIDIA PRIME offload for Hermes' Electron process.
+            exec_index = next(
+                index for index, line in enumerate(lines) if line.lstrip().startswith("exec ")
+            )
+            if "exec nvidia-offload " not in lines[exec_index]:
+                lines[exec_index] = lines[exec_index].replace(
+                    "exec ", "exec nvidia-offload ", 1
                 )
             launcher.write_text("".join(lines))
             PY
