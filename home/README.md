@@ -36,6 +36,11 @@ home/
 | Desktop preferences | Plasma panels, colors, wallpaper, icons |
 | User services | app-level user services and autostart entries |
 
+`home/yashindo/apps/git.nix` configures Git to sign every commit with SSH,
+using `~/.ssh/id_ed25519.pub`. Register that public key with GitHub as a
+signing key. The global Git settings take effect after Home Manager activation;
+they do not retroactively sign existing commits.
+
 KWin's Blur effect is explicitly disabled in
 `home/yashindo/plasma/desktop-settings.nix` while compositor offscreen-framebuffer
 errors are being investigated; the other configured effects remain unchanged.
