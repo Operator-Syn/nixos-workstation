@@ -38,7 +38,9 @@ home/
 
 `home/yashindo/apps/git.nix` configures Git to sign every commit with SSH,
 using `~/.ssh/id_ed25519.pub`. Register that public key with GitHub as a
-signing key. The global Git settings take effect after Home Manager activation;
+signing key. GitHub also associates a commit with its effective committer email;
+stale repository-local `user.name` or `user.email` values override the global
+identity. The global Git settings take effect after Home Manager activation;
 they do not retroactively sign existing commits.
 
 KWin's Blur effect is explicitly disabled in
