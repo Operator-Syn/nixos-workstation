@@ -7,6 +7,7 @@
   ...
 }: let
   cfg = config.modules.vscode;
+  nixFormatter = "${pkgs.alejandra}/bin/alejandra";
   settingsPath = "${config.xdg.configHome}/Code/User/settings.json";
   stagedSettingsPath = "${config.xdg.configHome}/Code/User/.settings.json.hm-staged";
   vscodeBasePackage = pkgsUnstable.vscode.override {
@@ -18,24 +19,48 @@
       + ''
         ${pkgs.python3}/bin/python3 - "$out/lib/vscode/resources/app/extensions/copilot/dist/extension.js" <<'PY'
         from pathlib import Path
+        import re
         import sys
 
         extension = Path(sys.argv[1])
         source = extension.read_text()
-        replacements = (
-            (
-                "await dO.promises.copyFile(yr(__dirname,fZt),yr(r,fZt))",
-                "await dO.promises.copyFile(yr(__dirname,fZt),yr(r,fZt)),await dO.promises.chmod(yr(r,fZt),0o644)",
-            ),
-            (
-                "await pz.promises.copyFile(yr(__dirname,son),yr(n,son))",
-                "await pz.promises.copyFile(yr(__dirname,son),yr(n,son)),await pz.promises.chmod(yr(n,son),0o644)",
-            ),
+        # The Nix store copies are read-only; these generated shims must be writable.
+        copy_pattern = re.compile(
+            r"await (?P<fs>[A-Za-z_$][\w$]*)\.promises\.copyFile"
+            r"\((?P<join>[A-Za-z_$][\w$]*)\(__dirname,(?P<name>[A-Za-z_$][\w$]*)\),"
+            r"(?P=join)\((?P<directory>[A-Za-z_$][\w$]*),(?P=name)\)\)"
         )
-        for old, new in replacements:
-            if source.count(old) != 1:
-                raise SystemExit(f"Expected one Copilot shim copy operation: {old}")
-            source = source.replace(old, new, 1)
+        matches = list(copy_pattern.finditer(source))
+        if len(matches) != 2:
+            raise SystemExit(
+                "Expected the Copilot CLI and debug command shim copies; "
+                f"found {len(matches)}"
+            )
+
+        shim_declarations = re.findall(
+            r"""([A-Za-z_$][\w$]*)\s*=\s*(["'])(copilotCLIShim\.js|copilotDebugCommand\.js)\2""",
+            source,
+        )
+        shim_symbols = {symbol for symbol, _, _ in shim_declarations}
+        shim_names = {filename for _, _, filename in shim_declarations}
+        if (
+            shim_names != {"copilotCLIShim.js", "copilotDebugCommand.js"}
+            or {match.group("name") for match in matches} != shim_symbols
+        ):
+            raise SystemExit(
+                "Expected copies of copilotCLIShim.js and copilotDebugCommand.js"
+            )
+
+        for match in reversed(matches):
+            destination = (
+                f"{match.group('join')}("
+                f"{match.group('directory')},{match.group('name')})"
+            )
+            chmod = (
+                f"{match.group(0)},await {match.group('fs')}"
+                f".promises.chmod({destination},0o644)"
+            )
+            source = source[:match.start()] + chmod + source[match.end():]
         extension.write_text(source)
         PY
       '';
@@ -89,6 +114,8 @@ in {
   };
 
   config = lib.mkIf cfg.enable {
+    home.packages = [pkgs.alejandra];
+
     home.file.".local/share/applications/code-url-handler.desktop".text = ''
       [Desktop Entry]
       NoDisplay=true
@@ -191,7 +218,7 @@ in {
 
           "nix.enableLanguageServer" = true;
           "nix.serverPath" = "nil";
-          "nix.formatterPath" = "alejandra";
+          "nix.formatterPath" = nixFormatter;
 
           # Prefer the workspace's approved direnv environment so Rust
           # Analyzer, Cargo, and rustc come from the same project dev shell.
@@ -208,9 +235,7 @@ in {
               };
 
               formatting = {
-                command = [
-                  "alejandra"
-                ];
+                command = [nixFormatter];
               };
             };
           };
