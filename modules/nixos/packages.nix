@@ -54,7 +54,6 @@
     xfdesktop
     xfce4-settings
     xfce4-terminal
-    dbus
     xauth
     xdpyinfo
     setxkbmap
@@ -69,19 +68,15 @@ in {
 
   environment.systemPackages = with pkgs;
     [
-      alejandra
       docker-compose
       ffmpeg-full
-      easyeffects
       krita
       lmstudio
-      gamemode
       git
       gnused
       nix
       ripgrep
       nil
-      nixfmt
       uv
       nodejs_24
       bun
@@ -89,7 +84,6 @@ in {
       pavucontrol
       qbittorrent
       kdePackages.kamoso
-      kdePackages.qrca
       zbar
       tcpdump
       tree
@@ -104,14 +98,7 @@ in {
       rust-analyzer
 
       kdePackages.partitionmanager
-      kdePackages.aurorae
-      kdePackages.breeze
-      kdePackages.kconfig
-      kdePackages.kcoreaddons
       kdePackages.kdecoration
-      kdePackages.plasma-browser-integration
-      kdePackages.polkit-kde-agent-1
-      kdePackages.qttools
     ]
     ++ playwrightRuntimePackages
     ++ hermesBotScreenPackages;
