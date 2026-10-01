@@ -81,6 +81,8 @@ Move logic into `modules/nixos/` when it could reasonably be reused by another h
 
 ## Hardware Refresh
 
+The generated hardware file owns detected devices, but not the secondary storage mount. `hosts/hiraeth/storage.nix` is the single source of truth for `/mnt/storage` (UUID `68eaa544-b6d9-4928-ab3a-959d2e2890e3`) and its `nofail`/directory policy. The `update-hardware` helper filters this custom mount out of generator output so a refresh does not reintroduce a duplicate.
+
 The generated hardware file is:
 
 ```text
