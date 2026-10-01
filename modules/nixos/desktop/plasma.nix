@@ -1,10 +1,5 @@
 {pkgs, ...}: {
   programs.dconf.enable = true;
-  programs.firefox = {
-    enable = true;
-    package = pkgs.firefox-esr;
-  };
-
   environment.plasma6.excludePackages = with pkgs.kdePackages; [
     discover
   ];
@@ -14,12 +9,8 @@
   # not implement.
   xdg.portal = {
     enable = true;
-    extraPortals = [
-      pkgs.kdePackages.xdg-desktop-portal-kde
-      pkgs.xdg-desktop-portal-gtk
-    ];
-    config.KDE.default = [ "kde" "gtk" ];
-    config.common.default = [ "kde" "gtk" ];
+    config.KDE.default = ["kde" "gtk"];
+    config.common.default = ["kde" "gtk"];
   };
 
   security.rtkit.enable = true;
