@@ -48,6 +48,8 @@ modules/
 | `kvm-manager.nix` | KVM/libvirt services, default network startup, and virt-manager |
 | `virtualisation.nix` | Docker daemon, started on demand through socket activation |
 
+On Hiraeth, the NixOS Plasma module provides its default themes, KDE utilities, and KDE/GTK portals; `desktop/plasma.nix` retains only portal preference and host-specific behavior. The GameMode module provides its executable, and Home Manager owns the configured EasyEffects application. `packages.nix` adds host-wide tools not already supplied by those modules. The Python module extends the shared `nix-ld` library list without taking a second ownership of the linker or Git. These are declaration cleanups, not removals of Plasma, GameMode, Git, or EasyEffects functionality; activation remains a separate user-owned step.
+
 The NetBird daemon enables `NB_USE_LEGACY_ROUTING=true`, NetBird's Linux
 fallback for exit-node routing issues. After activation, verify exit-node
 connectivity with the temporary relay host route removed. This is a client-side
