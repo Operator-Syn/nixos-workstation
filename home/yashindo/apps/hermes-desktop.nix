@@ -10,11 +10,15 @@
     let
       computerUseLazyTarget = "${config.home.homeDirectory}/.cache/hermes/computer-use-lazy";
       cuaDriverPath = "${config.home.homeDirectory}/.local/bin/cua-driver";
-      browserCdpProfile = "${config.home.homeDirectory}/.local/share/hermes-cdp-profile";
-      browserCdpUrl = "http://127.0.0.1:9222";
+      browserCdpProfile = "${config.home.homeDirectory}/.config/google-chrome-agent";
+      browserCdpProfileState = "${browserCdpProfile}/Local State";
+      browserCdpUrl = "ws://127.0.0.1:9222";
       browserCdpLauncher = pkgs.writeShellScriptBin "hermes-cdp-browser" ''
         set -euo pipefail
-        install -d -m 0700 ${lib.escapeShellArg browserCdpProfile}
+        if [[ ! -f ${lib.escapeShellArg browserCdpProfileState} ]]; then
+          printf '%s\n' 'Hermes Chrome profile copy is missing' >&2
+          exit 1
+        fi
         exec ${pkgs.google-chrome}/bin/google-chrome-stable \
           --user-data-dir=${lib.escapeShellArg browserCdpProfile} \
           --remote-debugging-address=127.0.0.1 \
@@ -272,7 +276,7 @@
       xdg.desktopEntries.hermes-cdp-browser = {
         name = "Hermes Browser (CDP)";
         genericName = "Dedicated browser profile for Hermes";
-        comment = "Launch the isolated browser profile used by Hermes agents";
+        comment = "Launch the persistent copied Chrome profile used by Hermes agents";
         exec = "${browserCdpLauncher}/bin/hermes-cdp-browser";
         icon = "google-chrome";
         terminal = false;
