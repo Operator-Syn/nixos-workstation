@@ -39,7 +39,8 @@
                   "applications:brave-browser.desktop"
                   "applications:code.desktop"
                   "applications:Alacritty.desktop"
-                  "applications:hermes.desktop"
+                  # Keep this desktop ID aligned with Hermes package updates.
+                  "applications:com.nousresearch.hermes.desktop"
                 ];
               };
             }
