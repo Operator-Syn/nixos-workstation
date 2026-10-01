@@ -33,7 +33,7 @@
     echo "Scanning hardware for changes..."
     sudo nixos-generate-config --dir $(mktemp -d) --show-hardware-config 2>/dev/null \
       | awk '
-          /fileSystems\."\/var\/lib\/(containers|docker)/ { skip=1 }
+          /fileSystems\."\/(var\/lib\/(containers|docker)|mnt\/storage)/ { skip=1 }
           skip && /};/ { skip=0; next }
           !skip
         ' > "$TEMP_FILE"
