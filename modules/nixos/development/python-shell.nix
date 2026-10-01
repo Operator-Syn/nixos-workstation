@@ -10,32 +10,29 @@ in {
     lib.mkEnableOption "Python development shell";
 
   config = lib.mkIf cfg.enable {
-    programs.nix-ld = {
-      enable = true;
-      libraries = with pkgs; [
-        stdenv.cc.cc.lib
-        zlib
-        openssl
-        libffi
-        libxml2
-        libxslt
-        sqlite
-        readline
-        openmpi
-        glib
-        nss
-        nspr
-        dbus
-        atk
-        cups
-        libdrm
-        mesa
-        expat
-        libxcb
-        libxkbcommon
-        alsa-lib
-      ];
-    };
+    programs.nix-ld.libraries = with pkgs; [
+      stdenv.cc.cc.lib
+      zlib
+      openssl
+      libffi
+      libxml2
+      libxslt
+      sqlite
+      readline
+      openmpi
+      glib
+      nss
+      nspr
+      dbus
+      atk
+      cups
+      libdrm
+      mesa
+      expat
+      libxcb
+      libxkbcommon
+      alsa-lib
+    ];
 
     environment.systemPackages = with pkgs; [
       (python314.withPackages (ps: [
@@ -44,7 +41,6 @@ in {
       pipenv
       gcc
       gnumake
-      git
       pkg-config
       playwright-driver.browsers
     ];
