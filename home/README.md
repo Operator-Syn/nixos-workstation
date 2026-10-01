@@ -36,7 +36,7 @@ home/
 | Desktop preferences | Plasma panels, colors, wallpaper, icons |
 | User services | app-level user services and autostart entries |
 
-`home/yashindo/apps/git.nix` configures Git to sign every commit with SSH,
+`modules/nixos/packages.nix` owns the shared Git executable. `home/yashindo/apps/git.nix` configures Git to sign every commit with SSH,
 using `~/.ssh/id_ed25519.pub`. Register that public key with GitHub as a
 signing key. GitHub also associates a commit with its effective committer email;
 stale repository-local `user.name` or `user.email` values override the global
@@ -86,7 +86,7 @@ declares on each activation.
 
 VS Code user settings, language-specific formatters, Nix language-server
 configuration, terminal defaults, and trusted schema domains are declared in
-`home/yashindo/apps/vscode.nix`. By default, the declared settings seed a
+`home/yashindo/apps/vscode.nix`. The module adds its formatter as a package and stores the absolute Nix-store path in both VS Code Nix formatter settings, so formatting does not depend on an ambient `PATH`. By default, the declared settings seed a
 writable `~/.config/Code/User/settings.json`; imperative edits are retained
 and take precedence over declarative defaults. Set
 `modules.vscode.mutableUserSettings = false` for a fully Home Manager-managed
@@ -108,7 +108,7 @@ Fish autosuggestions use muted purple italics to distinguish the proposed
 suffix from text already typed in VS Code and Alacritty terminals. The color
 applies to new Fish sessions after Home Manager activation.
 
-General-purpose language runtimes such as Node and Python should usually stay out of `home/yashindo/packages.nix`. Prefer `devshells/` for project-scoped tooling and Distrobox for mutable dependency experiments.
+General-purpose language runtimes such as Node and Python should usually stay out of `home/yashindo/packages.nix`. Prefer `devshells/` for project-scoped tooling and Distrobox for mutable dependency experiments. Plasma provides its KDE graphics thumbnailers, and the enabled Home Manager EasyEffects service provides the app, so the user package list does not duplicate either declaration.
 
 The desktop owns the writable `~/.config/mimeapps.list`, including browser,
 folder, and app protocol associations. Home Manager does not generate that file:
@@ -184,11 +184,16 @@ systemwide. The built-in browser uses Hermes PM's pinned `agent-browser` CLI and
 Chromium; Nix declares their required system libraries. The Hermes launcher
 points Hermes at the existing user-owned `~/.local/bin/cua-driver`, and Hermes
 PM keeps the browser tools in user-owned state. A Home Manager desktop entry,
-`Hermes Browser (CDP)`, launches Google Chrome with the separate persistent
-profile `~/.local/share/hermes-cdp-profile` and remote debugging bound to
-`127.0.0.1:9222`. Sign in to accounts manually in that profile; its cookies and
-sessions remain local. Hermes points its built-in browser/CDP tools at that
-endpoint. With `browser.backend: off`, the built-in browser mode stays active.
+`Hermes Browser (CDP)`, launches Google Chrome with the persistent full copy
+at `~/.config/google-chrome-agent` and remote debugging bound to
+`127.0.0.1:9222`. The copied Chrome state includes the source profile's cookies,
+sessions, settings, and extensions; the source `~/.config/google-chrome`
+directory remains untouched. Changes stay in the copy except for data Chrome
+Sync may propagate. Hermes root configuration uses
+`browser.backend: off`, `browser.use_real_profile: false`, and the stable CDP
+base `ws://127.0.0.1:9222`; start Chrome from the launcher before connecting when
+the endpoint is closed. The launcher refuses to create a blank profile if the
+copy is missing.
 The Browser Use CLI is installed through Hermes' package manager and can be
 selected as an alternate mode; it replaces the built-in `browser` and
 `browser-cdp` toolsets while selected. Doctor reports this expected mode
