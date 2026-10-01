@@ -11,11 +11,11 @@
   # (e.g. VS Code's ChatGPT extension) bundle. Use that directly instead.
   codex-bin = pkgs.stdenv.mkDerivation rec {
     pname = "codex";
-    version = "0.147.0";
+    version = "0.159.2";
 
     src = pkgs.fetchurl {
       url = "https://registry.npmjs.org/@openai/codex/-/codex-${version}-linux-x64.tgz";
-      hash = "sha256-yWl0DPgpfkwxkFzVUe/rLJmvUIDBLCNr34JVmLJQE5o=";
+      hash = "sha256-hKazX7Rb3LlM75/LMpQ4BFqJEfU4dsyamn5vm7E4Lro=";
     };
 
     nativeBuildInputs = [pkgs.makeBinaryWrapper];
@@ -54,7 +54,6 @@ in {
     inkscape
     inter
     inter-nerdfont
-    kdePackages.kdegraphics-thumbnailers
     kdePackages.kirigami
     kdePackages.kirigami-addons
     kdePackages.qwt
@@ -70,7 +69,6 @@ in {
     claude-code
     codex-bin
     pkgsUnstable.opencode
-    ripgrep
     vlc
     zoxide
     zoom-us
