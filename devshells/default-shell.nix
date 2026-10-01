@@ -5,10 +5,14 @@ in
     shellHook = common.shellHook;
     packages = with pkgs; [
       alejandra
+      cmake
       git
+      libopenmpt
       nil
+      ninja
       nixfmt
       pkg-config
+      SDL2
       tree
     ];
   }
