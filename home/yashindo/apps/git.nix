@@ -11,6 +11,8 @@
 
     programs.git = {
       enable = true;
+      # NixOS owns the shared Git executable; Home Manager owns user config.
+      package = null;
 
       settings = {
         init.defaultBranch = "main";
