@@ -25,6 +25,7 @@ const maxFileBytes = 512 * 1024;
 const maxOperationPaths = 128;
 const maxOperationBytes = 8 * 1024 * 1024;
 const maxStoredOperations = 16;
+const fileListLimit = 500;
 const operationTtlMs = 30 * 60 * 1000;
 
 type Change = {
@@ -246,6 +247,7 @@ function runAllowed(command: string, args: string[], cwd: string, timeout = 120_
   }
   const completed = spawnSync(command, args, {cwd, encoding: "utf8", timeout, maxBuffer: 4 * 1024 * 1024});
   return {
+    kind: "command",
     command: [command, ...args].join(" "),
     status: completed.status,
     signal: completed.signal,
@@ -258,6 +260,7 @@ function runAllowed(command: string, args: string[], cwd: string, timeout = 120_
 function runFixed(command: string, args: string[], cwd = repoRoot, timeout = 120_000) {
   const completed = spawnSync(command, args, {cwd, encoding: "utf8", timeout, maxBuffer: 4 * 1024 * 1024});
   return {
+    kind: "command",
     command: [command, ...args].join(" "),
     status: completed.status,
     signal: completed.signal,
@@ -277,7 +280,7 @@ type DocumentationFinding = {
 
 async function auditDocumentation() {
   const listed = runAllowed("git", ["ls-files", "--cached", "--others", "--exclude-standard"], repoRoot);
-  if (listed.status !== 0) return {valid: false, filesScanned: 0, findings: [{kind: "stale-reference", path: "", message: listed.stderr || "Could not list repository files."}]};
+  if (listed.status !== 0) return {kind: "documentation-audit", valid: false, filesScanned: 0, findings: [{kind: "stale-reference", path: "", message: listed.stderr || "Could not list repository files."}]};
 
   const markdownPaths = visibleGitLines(listed.stdout)
     .filter((path) => path.endsWith(".md") && path !== "AGENTS.md" && !path.startsWith(".codex/") && !path.startsWith("secrets/"));
@@ -321,7 +324,7 @@ async function auditDocumentation() {
     if (!mcpReadme.includes(`\`${name}\``)) findings.push({kind: "mcp-documentation", path: "mcp/README.md", message: `MCP tool is not documented: ${name}`});
   }
 
-  return {valid: findings.length === 0, filesScanned: markdownPaths.length, findings};
+  return {kind: "documentation-audit", valid: findings.length === 0, filesScanned: markdownPaths.length, findings};
 }
 
 function operationHash(kind: string, changes: Change[]): string {
@@ -460,7 +463,9 @@ async function createWorkingTreeOperation(): Promise<WorkingTreeOperation> {
 function getWorkingTreeOperation(id: string, approvalHash: string): WorkingTreeOperation {
   pruneOperationStore(workingTreeOperations);
   const operation = workingTreeOperations.get(id);
-  if (!operation || operation.hash !== approvalHash) fail("The working-tree operation ID or approval hash is invalid or stale.");
+  if (!operation || operation.hash !== approvalHash) {
+    fail(`The working-tree operation ID or approval hash is invalid, expired, or evicted. Operations expire ${operationTtlMs / 60_000} minutes after preparation and the server retains at most ${maxStoredOperations}; run prepare_working_tree_commit again.`);
+  }
   return operation;
 }
 
@@ -498,7 +503,9 @@ async function ensureOperationCurrent(operation: Operation) {
 function getOperation(id: string, approvalHash: string): Operation {
   pruneOperationStore(operations);
   const operation = operations.get(id);
-  if (!operation || operation.hash !== approvalHash) fail("The operation ID or approval hash is invalid or stale.");
+  if (!operation || operation.hash !== approvalHash) {
+    fail(`The operation ID or approval hash is invalid, expired, or evicted. Operations expire ${operationTtlMs / 60_000} minutes after preparation and the server retains at most ${maxStoredOperations} per family, oldest first; run the matching prepare tool again.`);
+  }
   return operation;
 }
 
@@ -506,11 +513,22 @@ const server = new McpServer({name: "nix-config-project-mcp", version: "0.1.0"})
 
 server.tool("read_project_overview", "List non-sensitive repository files and the primary NixOS entry points without modifying the checkout.", {}, {title: "Read project overview", ...inspectLocal}, async () => {
   const output = runAllowed("git", ["ls-files", "--cached", "--others", "--exclude-standard"], repoRoot);
-  return result({repository: repoRoot, files: visibleGitLines(output.stdout).filter(Boolean).slice(0, 500), flake: "flake.nix", host: "hosts/hiraeth/default.nix"});
+  const visible = visibleGitLines(output.stdout).filter(Boolean);
+  return result({
+    kind: "project-overview",
+    repository: repoRoot,
+    files: visible.slice(0, fileListLimit),
+    fileCount: visible.length,
+    truncated: visible.length > fileListLimit,
+    fileListLimit,
+    flake: "flake.nix",
+    host: "hosts/hiraeth/default.nix",
+    fixedIdentifierNote: "flake and host are constants declared by this server, not discovered paths.",
+  });
 });
 
 server.tool("read_authority_contract", "Explain the MCP repository boundary, approval model, declarative rules, and protected paths.", {}, {title: "Read authority contract", ...inspectLocal}, async () => {
-  return result({repository: repoRoot, ...authorityContract});
+  return result({kind: "authority-contract", repository: repoRoot, ...authorityContract});
 });
 
 server.tool("validate_declarative_contract", "Validate declarative and MCP authority conventions from repository source only.", {}, {title: "Validate declarative contract", ...inspectLocal}, async () => {
@@ -518,13 +536,13 @@ server.tool("validate_declarative_contract", "Validate declarative and MCP autho
     "mcp/src/server.ts",
   ];
   const entries = await Promise.all(paths.map(async (path) => [path, (await readSafeFile(path)) ?? ""] as const));
-  return result({repository: repoRoot, ...validateDeclarativeContract(Object.fromEntries(entries))});
+  return result({kind: "declarative-contract", repository: repoRoot, ...validateDeclarativeContract(Object.fromEntries(entries))});
 });
 
 server.tool("read_project_file", "Read one non-sensitive regular file inside the repository.", {path: z.string().describe("Repository-relative path to one regular file. A missing file is an error, not an empty result. The denied path classes and the 512 KiB read cap apply.")}, {title: "Read one project file", ...inspectLocal}, async ({path}) => {
   const content = await readSafeFile(path);
   if (content === null) fail("The file does not exist.");
-  return result({path: safeRelativePath(path), content});
+  return result({kind: "file-content", path: safeRelativePath(path), content});
 });
 
 server.tool("find_nix_references", "Find text references in Nix files without running arbitrary shell commands. Results silently exclude secrets/** and are limited to *.nix files.", {query: z.string().min(1).describe("ripgrep regular expression, not a literal phrase."), path: z.string().default(".").describe("Repository-relative file or directory to search; defaults to the repository root.")}, {title: "Find references in Nix files", ...inspectLocal}, async ({query, path}) => {
@@ -541,7 +559,7 @@ server.tool("inspect_flake", "Inspect flake outputs using the read-only nix flak
   return result(runAllowed("nix", ["flake", "show", "--json", "."], repoRoot, 120_000));
 });
 
-server.tool("audit_documentation", "Audit tracked Markdown documentation for stale legacy claims, missing repository paths, and undocumented MCP tools without modifying the checkout.", {}, {title: "Audit documentation", ...inspectLocal}, async () => {
+server.tool("audit_documentation", "Audit tracked Markdown documentation for stale legacy claims, missing repository paths, and undocumented MCP tools without modifying the checkout. Findings carry kind 'missing-path', 'stale-reference', or 'mcp-documentation', and valid is false whenever any finding is present.", {}, {title: "Audit documentation", ...inspectLocal}, async () => {
   return result(await auditDocumentation());
 });
 
@@ -551,6 +569,7 @@ server.tool("validate_mcp", "Run the fixed repository MCP test suite without acc
 
 server.tool("validate_repository", "Run the bounded documentation audit, MCP test suite, and read-only Nix flake check as separate results.", {}, {title: "Validate the repository", ...inspectNetworked}, async () => {
   return result({
+    kind: "repository-validation",
     documentation: await auditDocumentation(),
     mcp: runFixed("bun", ["test", "mcp"], repoRoot, 300_000),
     flake: runAllowed("nix", ["flake", "check", "--no-build", "--show-trace"], repoRoot, 300_000),
@@ -562,8 +581,8 @@ server.tool("prepare_working_tree_commit", "Prepare the complete visible dirty w
 });
 
 server.tool("git_commit_working_tree", "Commit the reviewed working tree one file per commit after rechecking the exact approved snapshot. Requires prepare_working_tree_commit and no apply step. Each file requires its own message; all reviewed paths must be represented, and no other path may be committed. Subjects end with a period.", {
-  operationId: z.string(),
-  approvalHash: z.string(),
+  operationId: z.string().describe("Operation ID from prepare_working_tree_commit. No apply step is involved."),
+  approvalHash: z.string().describe("Approval hash returned with that operation ID; rechecked against the snapshot before staging."),
   commits: z.array(z.object({
     path: z.string().min(1).describe("One reviewed path from the prepare result. Every reviewed path must appear exactly once; missing, extra, or duplicated paths are rejected."),
     message: z.string().min(1).max(4096).describe("Commit subject ending with a period. Any further line must be a valid 'Co-authored-by: Name <email>' trailer. Screened as argv, so avoid a semicolon anywhere in the message."),
@@ -648,7 +667,7 @@ server.tool("prepare_format", "Run the flake formatter in a temporary isolated w
     const allPaths = runAllowed("git", ["ls-files", "--cached", "--others", "--exclude-standard", "--", "*.nix"], repoRoot).stdout.split("\n").filter(Boolean);
     const selected = paths.length ? paths.map((path) => safeRelativePath(path)) : allPaths;
     const changes = await snapshotChanges(workspace, selected);
-    if (changes.length === 0) return result({message: "Formatting produced no changes.", command: formatted.command});
+    if (changes.length === 0) return result({kind: "no-op", message: "Formatting produced no changes.", command: formatted.command});
     const operation = createOperation("format", changes);
     return result({...operationSummary(operation), diff: changes.map(unifiedDiff).join("\n"), command: formatted.command});
   } finally {
@@ -662,7 +681,7 @@ server.tool("prepare_flake_lock_update", "Update flake.lock in a temporary isola
     const updated = runAllowed("nix", ["flake", "update", "--flake", workspace], workspace, 300_000);
     if (updated.status !== 0) return result(updated);
     const changes = await snapshotChanges(workspace, ["flake.lock"]);
-    if (changes.length === 0) return result({message: "The flake lock file is already current.", command: updated.command});
+    if (changes.length === 0) return result({kind: "no-op", message: "The flake lock file is already current.", command: updated.command});
     const operation = createOperation("flake-lock-update", changes);
     return result({...operationSummary(operation), diff: changes.map(unifiedDiff).join("\n"), command: updated.command});
   } finally {
@@ -691,7 +710,7 @@ server.tool("validate_flake", "Run the read-only flake check on the checkout, or
   }
 });
 
-server.tool("apply_approved_patch", "Apply an exact prepared operation after its ID and approval hash have been reviewed.", {operationId: z.string(), approvalHash: z.string()}, {title: "Apply an approved patch", ...modifyDestructive}, async ({operationId, approvalHash}) => {
+server.tool("apply_approved_patch", "Apply an exact prepared operation after its ID and approval hash have been reviewed.", {operationId: z.string().describe("Operation ID returned by a prepare tool."), approvalHash: z.string().describe("Approval hash returned with that operation ID; both are rechecked before any write.")}, {title: "Apply an approved patch", ...modifyDestructive}, async ({operationId, approvalHash}) => {
   const operation = getOperation(operationId, approvalHash);
   await ensureOperationCurrent(operation);
   for (const change of operation.changes) {
@@ -705,7 +724,7 @@ server.tool("apply_approved_patch", "Apply an exact prepared operation after its
   return result({applied: true, ...operationSummary(operation)});
 });
 
-server.tool("prepare_commits", "Suggest a one-sentence commit subject per changed file for a prepared operation that has already been applied with apply_approved_patch (verb + path, e.g. 'Add compatibility for non-agent editing.'). Writes no commits and rejects a working-tree operation; edit each subject before passing it to git_commit_files.", {operationId: z.string(), approvalHash: z.string()}, {title: "Suggest commit subjects", ...inspectLocal}, async ({operationId, approvalHash}) => {
+server.tool("prepare_commits", "Suggest a one-sentence commit subject per changed file for a prepared operation that has already been applied with apply_approved_patch (verb + path, e.g. 'Add compatibility for non-agent editing.'). Writes no commits and rejects a working-tree operation; edit each subject before passing it to git_commit_files.", {operationId: z.string().describe("Operation ID from a prepare tool, already applied with apply_approved_patch."), approvalHash: z.string().describe("Approval hash returned with that operation ID.")}, {title: "Suggest commit subjects", ...inspectLocal}, async ({operationId, approvalHash}) => {
   const operation = getOperation(operationId, approvalHash);
   await ensureOperationCurrent({...operation, changes: operation.changes.map((change) => ({...change, before: change.after, beforeHash: change.afterHash}))});
   const commits = operation.changes.map((change) => {
@@ -717,10 +736,10 @@ server.tool("prepare_commits", "Suggest a one-sentence commit subject per change
     else subject = `Update ${path}.`;
     return {path, message: subject};
   });
-  return result({operationId, approvalHash, commits});
+  return result({kind: "commit-suggestions", operationId, approvalHash, commits});
 });
 
-server.tool("git_commit_files", "After review, create explicitly approved one-file commits for a prepared operation that has already been applied with apply_approved_patch; rejects unrelated dirty paths. Subjects end with a period.", {operationId: z.string(), approvalHash: z.string(), commits: z.array(z.object({
+server.tool("git_commit_files", "After review, create explicitly approved one-file commits for a prepared operation that has already been applied with apply_approved_patch; rejects unrelated dirty paths. Subjects end with a period.", {operationId: z.string().describe("Operation ID from a prepare tool, already applied with apply_approved_patch."), approvalHash: z.string().describe("Approval hash returned with that operation ID."), commits: z.array(z.object({
     path: z.string().describe("One path from the prepared operation, which must already have been applied with apply_approved_patch."),
     message: z.string().min(1).max(4096).describe("Commit subject ending with a period. Any further line must be a valid 'Co-authored-by: Name <email>' trailer. Screened as argv, so avoid a semicolon anywhere in the message."),
   })).min(1)}, {title: "Commit prepared files", ...modifyAdditive}, async ({operationId, approvalHash, commits}) => {
