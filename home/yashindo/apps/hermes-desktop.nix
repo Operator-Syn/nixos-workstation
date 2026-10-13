@@ -35,12 +35,20 @@
         extraDependencyGroups = config.services.hermes-agent.extraDependencyGroups;
         extraPythonPackages = config.services.hermes-agent.extraPythonPackages;
       };
+      # External Mnemosyne is not an upstream dependency group. Use the exact
+      # Hermes interpreter's Nix packages, never its Python 3.12 provider venv.
+      # A .pth suffix keeps sealed Hermes dependencies first and also works for
+      # Desktop and isolated Python subprocesses (unlike CLI-only PYTHONPATH).
+      mnemosyneEmbeddingEnv = hermesBasePackage.python.withPackages (ps: [
+        ps.fastembed
+        ps.numpy
+      ]);
       hermesSitecustomize = pkgs.writeText "hermes-sitecustomize.py" ''
         import sys
 
         from hermes_cli import _launchers, venv_sync
 
-        _launchers.resolve_store_python = lambda _repo_root: None
+        _launchers.resolve_store_python = lambda _repo_root, **_kwargs: None
         venv_sync.check_runtime = lambda _project_root: None
 
         if "doctor" in sys.argv[1:]:
@@ -64,7 +72,17 @@
         postFixup =
           (old.postFixup or "")
           + ''
+            printf '%s\n' '${mnemosyneEmbeddingEnv}/${hermesBasePackage.python.sitePackages}' > "$out/${hermesBasePackage.python.sitePackages}/mnemosyne-embeddings.pth"
             install -m 0444 ${hermesSitecustomize} "$out/${hermesBasePackage.python.sitePackages}/sitecustomize.py"
+            # Patch a private copy of the CLI source in this derivation, never
+            # the store input or the externally managed provider installation.
+            site="$out/${hermesBasePackage.python.sitePackages}"
+            cp -rL "$site/hermes_cli" "$TMPDIR/hermes_cli"
+            chmod -R u+w "$TMPDIR/hermes_cli"
+            rm -r "$site/hermes_cli"
+            mv "$TMPDIR/hermes_cli" "$site/hermes_cli"
+            ${pkgs.patch}/bin/patch --fuzz=0 -p1 -d "$site" < ${./hermes/mnemosyne-cli.patch}
+            install -m 0444 ${./hermes/mnemosyne_reindex.py} "$site/hermes_cli/mnemosyne_reindex.py"
           '';
       });
       hermesAgentInputs = pkgs.writeText "hermes-agent-inputs.json" (
@@ -145,66 +163,6 @@
         +            (requestedStreamExists ? requestedStreamId : recoverableStreamId) ??
         +            nextStreamMessageId('assistant-stream')
         +          let nextMessages: ChatMessage[]
-        --- a/apps/desktop/src/app/session/hooks/use-prompt-actions/submit.ts
-        +++ b/apps/desktop/src/app/session/hooks/use-prompt-actions/submit.ts
-        @@ -44,1 +44,1 @@
-        -import { resolveSessionProfile } from '../use-session-actions/utils'
-        +import { preserveLocalPendingTurnMessages, resolveSessionProfile } from '../use-session-actions/utils'
-        @@ -846,26 +846,28 @@
-        -          if (refreshed) {
-        -            updateSessionState(
-        -              liveSessionId,
-        -              state => ({
-        -                ...state,
-        -                awaitingResponse: false,
-        -                busy: false,
-        -                messages: refreshed,
-        -                pendingBranchGroup: null
-        -              }),
-        -              targetStoredSessionId
-        -            )
-        -
-        -            if (targetIsCurrentView()) {
-        -              scope.setMessages(() => refreshed)
-        -              notify({
-        -                kind: 'warning',
-        -                message: copy.staleSessionBody,
-        -                title: copy.staleSessionTitle
-        -              })
-        -            }
-        -
-        -            releaseBusy()
-        -
-        -            return false
-        -          }
-        +          if (refreshed) {
-        +            // The freshness read runs before prompt.submit, so this send is
-        +            // still uncommitted. Rebase the live transcript and optimistic
-        +            // user row, then continue with this same submission.
-        +            const rebasedState = updateSessionState(
-        +              liveSessionId,
-        +              state => {
-        +                const optimisticMessage = state.messages.find(
-        +                  message => message.id === optimisticId && message.role === 'user'
-        +                )
-        +                const rebasedMessages = preserveLocalPendingTurnMessages(
-        +                  refreshed,
-        +                  state.messages.filter(message => message.id !== optimisticId)
-        +                ).filter(message => message.id !== optimisticId)
-        +
-        +                return {
-        +                  ...state,
-        +                  messages: optimisticMessage ? [...rebasedMessages, optimisticMessage] : rebasedMessages,
-        +                  pendingBranchGroup: null
-        +                }
-        +              },
-        +              targetStoredSessionId
-        +            )
-        +
-        +            if (targetIsCurrentView()) {
-        +              scope.setMessages(() => rebasedState.messages)
-        +            }
-        +          }
       '';
       hermesDesktopNpmLib =
         hermesCliPackage.hermesNpmLib
@@ -263,7 +221,10 @@
           '';
       });
     in {
-      services.hermes-agent.extraDependencyGroups = ["computer-use"];
+      services.hermes-agent.extraDependencyGroups = [
+        "computer-use"
+        "firecrawl"
+      ];
 
       # The previous Home Manager activation left this marker behind. Remove
       # only the marker so Hermes can manage its existing config.yaml itself.
