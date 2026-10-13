@@ -58,8 +58,8 @@ type WorkingTreeOperation = {
 };
 
 const changeSchema = z.object({
-  path: z.string().min(1),
-  content: z.string().nullable(),
+  path: z.string().min(1).describe("Repository-relative path. Denied: secrets/, .env*, .git/, private keys and certificates, symlinks, and names beginning with ':'."),
+  content: z.string().nullable().describe("Complete new file content. null deletes the file; an empty string truncates it to zero bytes."),
 });
 
 // MCP ToolAnnotations, expressed once instead of per registration. The three
@@ -230,11 +230,19 @@ async function createWorkspace(): Promise<string> {
   return workspace;
 }
 
+// Screened as substrings over every argv element of every spawned command, so
+// these also constrain user-supplied text: commit messages, paths, and search
+// patterns. Declared in the affected tool schemas and named in the error below.
+const screenedArgvTokens = [";", "sudo", "nixos-rebuild"];
+
 function runAllowed(command: string, args: string[], cwd: string, timeout = 120_000) {
   const allowed = new Set(["nix", "git", "rg"]);
   if (!allowed.has(command)) fail(`Command is not allowed: ${command}`);
-  if (args.some((arg) => arg.includes("sudo") || arg.includes("nixos-rebuild") || arg.includes(";"))) {
-    fail("The requested command contains a prohibited operation.");
+  const screened = args.find((arg) => screenedArgvTokens.some((token) => arg.includes(token)));
+  if (screened !== undefined) {
+    const token = screenedArgvTokens.find((candidate) => screened.includes(candidate));
+    const shown = screened.length > 60 ? `${screened.slice(0, 57)}...` : screened;
+    fail(`The requested command contains a prohibited operation: "${token}" appears in ${JSON.stringify(shown)}. Every argument is screened as a substring, so commit subjects, paths, and search patterns are screened too; write a comma where a semicolon was meant.`);
   }
   const completed = spawnSync(command, args, {cwd, encoding: "utf8", timeout, maxBuffer: 4 * 1024 * 1024});
   return {
@@ -513,13 +521,13 @@ server.tool("validate_declarative_contract", "Validate declarative and MCP autho
   return result({repository: repoRoot, ...validateDeclarativeContract(Object.fromEntries(entries))});
 });
 
-server.tool("read_project_file", "Read one non-sensitive regular file inside the repository.", {path: z.string()}, {title: "Read one project file", ...inspectLocal}, async ({path}) => {
+server.tool("read_project_file", "Read one non-sensitive regular file inside the repository.", {path: z.string().describe("Repository-relative path to one regular file. A missing file is an error, not an empty result. The denied path classes and the 512 KiB read cap apply.")}, {title: "Read one project file", ...inspectLocal}, async ({path}) => {
   const content = await readSafeFile(path);
   if (content === null) fail("The file does not exist.");
   return result({path: safeRelativePath(path), content});
 });
 
-server.tool("find_nix_references", "Find text references in Nix files without running arbitrary shell commands.", {query: z.string().min(1), path: z.string().default(".")}, {title: "Find references in Nix files", ...inspectLocal}, async ({query, path}) => {
+server.tool("find_nix_references", "Find text references in Nix files without running arbitrary shell commands. Results silently exclude secrets/** and are limited to *.nix files.", {query: z.string().min(1).describe("ripgrep regular expression, not a literal phrase."), path: z.string().default(".").describe("Repository-relative file or directory to search; defaults to the repository root.")}, {title: "Find references in Nix files", ...inspectLocal}, async ({query, path}) => {
   const target = safeRelativePath(path);
   return result(runAllowed("rg", ["--line-number", "--glob", "*.nix", "--glob", "!secrets/**", "--", query, target], repoRoot));
 });
@@ -553,10 +561,13 @@ server.tool("prepare_working_tree_commit", "Prepare the complete visible dirty w
   return result(workingTreeOperationSummary(await createWorkingTreeOperation()));
 });
 
-server.tool("git_commit_working_tree", "Commit the reviewed working tree one file per commit after rechecking the exact approved snapshot. Each file requires its own message; all reviewed paths must be represented, and no other path may be committed.", {
+server.tool("git_commit_working_tree", "Commit the reviewed working tree one file per commit after rechecking the exact approved snapshot. Requires prepare_working_tree_commit and no apply step. Each file requires its own message; all reviewed paths must be represented, and no other path may be committed. Subjects end with a period.", {
   operationId: z.string(),
   approvalHash: z.string(),
-  commits: z.array(z.object({path: z.string().min(1), message: z.string().min(1).max(4096)})).min(1),
+  commits: z.array(z.object({
+    path: z.string().min(1).describe("One reviewed path from the prepare result. Every reviewed path must appear exactly once; missing, extra, or duplicated paths are rejected."),
+    message: z.string().min(1).max(4096).describe("Commit subject ending with a period. Any further line must be a valid 'Co-authored-by: Name <email>' trailer. Screened as argv, so avoid a semicolon anywhere in the message."),
+  })).min(1),
 }, {title: "Commit the reviewed working tree", ...modifyAdditive}, async ({operationId, approvalHash, commits}) => {
   const operation = getWorkingTreeOperation(operationId, approvalHash);
   for (const entry of commits) {
@@ -610,7 +621,7 @@ server.tool("git_commit_working_tree", "Commit the reviewed working tree one fil
   });
 });
 
-server.tool("prepare_patch", "Prepare exact file contents against the current checkout without modifying it; the returned operation requires approval before application.", {changes: z.array(changeSchema).min(1)}, {title: "Prepare a file patch", ...prepareLocal}, async ({changes}) => {
+server.tool("prepare_patch", "Prepare exact file contents against the current checkout without modifying it; the returned operation requires approval before application with apply_approved_patch. Set content to null to delete a file.", {changes: z.array(changeSchema).min(1)}, {title: "Prepare a file patch", ...prepareLocal}, async ({changes}) => {
   if (changes.length > maxOperationPaths) fail(`A patch may contain at most ${maxOperationPaths} paths.`);
   const preparedChanges: Change[] = [];
   const seen = new Set<string>();
@@ -629,7 +640,7 @@ server.tool("prepare_patch", "Prepare exact file contents against the current ch
   return result({...operationSummary(operation), diff: operation.changes.map(unifiedDiff).join("\n")});
 });
 
-server.tool("prepare_format", "Run the flake formatter in a temporary isolated workspace and return a reviewable patch without modifying the checkout.", {paths: z.array(z.string()).default([])}, {title: "Prepare a formatter patch", ...prepareNetworked}, async ({paths}) => {
+server.tool("prepare_format", "Run the flake formatter in a temporary isolated workspace and return a reviewable patch without modifying the checkout.", {paths: z.array(z.string()).default([]).describe("Nix files to format. An empty list formats every tracked and untracked .nix file. Reports only a message when formatting changes nothing.")}, {title: "Prepare a formatter patch", ...prepareNetworked}, async ({paths}) => {
   const workspace = await createWorkspace();
   try {
     const formatted = runAllowed("nix", ["fmt", "."], workspace, 120_000);
@@ -709,7 +720,10 @@ server.tool("prepare_commits", "After a prepared operation has been applied, sug
   return result({operationId, approvalHash, commits});
 });
 
-server.tool("git_commit_files", "After review, create explicitly approved one-file commits for an applied prepared operation; rejects unrelated dirty paths.", {operationId: z.string(), approvalHash: z.string(), commits: z.array(z.object({path: z.string(), message: z.string().min(1).max(4096)})).min(1)}, {title: "Commit prepared files", ...modifyAdditive}, async ({operationId, approvalHash, commits}) => {
+server.tool("git_commit_files", "After review, create explicitly approved one-file commits for a prepared operation that has already been applied with apply_approved_patch; rejects unrelated dirty paths. Subjects end with a period.", {operationId: z.string(), approvalHash: z.string(), commits: z.array(z.object({
+    path: z.string().describe("One path from the prepared operation, which must already have been applied with apply_approved_patch."),
+    message: z.string().min(1).max(4096).describe("Commit subject ending with a period. Any further line must be a valid 'Co-authored-by: Name <email>' trailer. Screened as argv, so avoid a semicolon anywhere in the message."),
+  })).min(1)}, {title: "Commit prepared files", ...modifyAdditive}, async ({operationId, approvalHash, commits}) => {
   const operation = getOperation(operationId, approvalHash);
   await ensureOperationCurrent({...operation, changes: operation.changes.map((change) => ({...change, before: change.after, beforeHash: change.afterHash}))});
   const expected = new Set(operation.changes.map((change) => change.path));
