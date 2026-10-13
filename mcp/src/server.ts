@@ -236,12 +236,16 @@ async function createWorkspace(): Promise<string> {
 // patterns. Declared in the affected tool schemas and named in the error below.
 const screenedArgvTokens = [";", "sudo", "nixos-rebuild"];
 
+function screenedToken(value: string): string | undefined {
+  return screenedArgvTokens.find((token) => value.includes(token));
+}
+
 function runAllowed(command: string, args: string[], cwd: string, timeout = 120_000) {
   const allowed = new Set(["nix", "git", "rg"]);
   if (!allowed.has(command)) fail(`Command is not allowed: ${command}`);
-  const screened = args.find((arg) => screenedArgvTokens.some((token) => arg.includes(token)));
+  const screened = args.find((arg) => screenedToken(arg) !== undefined);
   if (screened !== undefined) {
-    const token = screenedArgvTokens.find((candidate) => screened.includes(candidate));
+    const token = screenedToken(screened);
     const shown = screened.length > 60 ? `${screened.slice(0, 57)}...` : screened;
     fail(`The requested command contains a prohibited operation: "${token}" appears in ${JSON.stringify(shown)}. Every argument is screened as a substring, so commit subjects, paths, and search patterns are screened too; write a comma where a semicolon was meant.`);
   }
@@ -474,6 +478,21 @@ async function ensureWorkingTreeOperationCurrent(operation: WorkingTreeOperation
   if (workingTreeOperationHash(current) !== operation.hash) fail("The working tree changed after preparation; prepare a new review operation.");
 }
 
+// Commit paths and messages become git argv only inside the staging loop, so the
+// spawn guard would otherwise reject them after earlier files were already
+// committed. Screen up front: identical acceptance, but no partial batch.
+function assertScreenedCommitArguments(commits: Array<{path: string; message: string}>) {
+  for (const entry of commits) {
+    for (const value of [entry.path, entry.message]) {
+      const token = screenedToken(value);
+      if (token !== undefined) {
+        const shown = value.length > 60 ? `${value.slice(0, 57)}...` : value;
+        fail(`Commit arguments are screened before any staging: "${token}" appears in ${JSON.stringify(shown)}. Nothing was staged and no commit was made.`);
+      }
+    }
+  }
+}
+
 function validCommitMessage(message: string) {
   const [subject, ...trailers] = message.split("\n");
   return subject.endsWith(".") && trailers.every((line) => /^Co-authored-by:\s+.+\s+<[^<>\s@]+@[^<>\s@]+>$/.test(line));
@@ -599,6 +618,7 @@ server.tool("git_commit_working_tree", "Commit the reviewed working tree one fil
     if (!reviewed.has(path)) fail(`The path was not part of the reviewed snapshot: ${path}`);
   }
   if (new Set(requestedPaths).size !== requestedPaths.length) fail("Each reviewed file may appear only once.");
+  assertScreenedCommitArguments(commits);
 
   await ensureWorkingTreeOperationCurrent(operation);
   const beforeStatus = runAllowed("git", ["status", "--short", "--untracked-files=all"], repoRoot);
@@ -750,6 +770,7 @@ server.tool("git_commit_files", "After review, create explicitly approved one-fi
   const requested = new Set(normalizedCommits.map((commit) => commit.path));
   if (normalizedCommits.length !== expected.size || requested.size !== expected.size || [...expected].some((path) => !requested.has(path))) fail("Commits must cover exactly the files in the prepared operation.");
   if (normalizedCommits.some((commit) => !validCommitMessage(commit.message))) fail("Commit messages must have a sentence-style subject ending with a period; optional lines may be valid Co-authored-by trailers.");
+  assertScreenedCommitArguments(normalizedCommits);
 
   const status = runAllowed("git", ["status", "--porcelain=v1", "-z", "--no-renames", "--untracked-files=all"], repoRoot);
   if (status.status !== 0) fail(status.stderr || "Could not inspect the working tree before committing.");
