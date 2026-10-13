@@ -43,7 +43,7 @@ modules/
 | `ollama.nix` | optional local Ollama service; currently not enabled by Hiraeth |
 | `openssh.nix` | OpenSSH server with password and root login disabled |
 | `packages.nix` | system-wide packages |
-| `scripts.nix` | `rebuild`, `hermes-restart`, `update-system`, `update-codex`, `update-hardware`, `wifi-hotspot`, `nvrun`, `getGPU` |
+| `scripts.nix` | `rebuild`, `hermes-restart`, `update-system`, `update-hardware`, `wifi-hotspot`, `nvrun`, `getGPU` |
 | `steam.nix` and `steam/` | Steam, GameMode (including `gamemode-toggle`), gamescope, launchers, and Protontricks support |
 | `kvm-manager.nix` | KVM/libvirt services, default network startup, and virt-manager |
 | `virtualisation.nix` | Docker daemon, started on demand through socket activation |
