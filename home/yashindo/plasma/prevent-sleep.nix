@@ -20,7 +20,7 @@
       powerProfile = "powerSaving";
     };
 
-    batteryLevels.lowLevel = 30;
+    batteryLevels.lowLevel = 15;
   };
 
   systemd.user.services.plasma-manual-inhibit = {
