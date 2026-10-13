@@ -8,7 +8,7 @@
     # NetBird/Wails requests Plasma's default expiration (-1). Pin this UI's
     # Linux notifications to three seconds without changing other applications.
     proxyVendor = false;
-    vendorHash = "sha256-MHZdyUYtbu3lnSNvaronSM0wScmHArhumJOyF9v6WkQ=";
+    vendorHash = "sha256-yIQCKamEEw6sG2x6lZgoTupFJzcDqCJYYBzf1h/7ozA=";
     modPostBuild =
       (previousAttrs.modPostBuild or "")
       + ''
