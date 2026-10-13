@@ -75,77 +75,186 @@ const prepareNetworked = {readOnlyHint: true, destructiveHint: false, idempotent
 const modifyAdditive = {readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false};
 const modifyDestructive = {readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false};
 
-// Output schemas. Every tool declares one, and `result()` mirrors the payload into
-// structuredContent, which the SDK requires once an output schema exists. They are
-// deliberately loose: output validation runs AFTER the handler, so a strict schema
-// would report an already-successful commit as a failed call. Describe, do not
-// constrain.
-const outputBase = (fields: z.ZodRawShape) =>
-  z.looseObject({
-    kind: z.string().optional().describe("Payload discriminator: 'command', 'no-op', 'commit-result', an operation kind, or a descriptive result name."),
-    ...fields,
-  });
-const operationFields = {
-  operationId: z.string().optional(),
-  approvalHash: z.string().optional(),
-  createdAt: z.string().optional(),
-  changes: z.array(z.any()).optional().describe("Per path: beforeHash, afterHash, and action (create, update, or delete)."),
-  diff: z.string().optional(),
-};
-const commandOut = outputBase({
-  command: z.string().optional().describe("The command line that ran."),
-  status: z.number().nullable().optional().describe("Process exit status; non-zero means the command failed."),
+// Output schemas: constrained per tool on the payload each handler actually returns.
+// Required fields are enforced, so a handler that stops returning one fails loudly
+// instead of silently degrading, and unknown keys stay tolerated (zod strips them), so
+// adding a field is not a breaking change.
+//
+// Two SDK constraints shaped this set. First, only OBJECT schemas are projected
+// (normalizeObjectSchema returns undefined for a union), so a multi-result tool is one
+// object keyed by an enum `kind` rather than a discriminated union. Second, validation
+// runs AFTER the handler, so a payload that violates its schema reports a completed
+// mutation as a failed call. Every branch a handler can return is therefore declared
+// here, and these were verified by executing the tools rather than by reading them.
+const nullableString = z.string().nullable();
+const documentationFindingOut = z.object({
+  kind: z.string(),
+  path: z.string(),
+  line: z.number().optional(),
+  message: z.string(),
+  evidence: z.string().optional(),
+});
+const contractFindingOut = z.object({
+  id: z.string(),
+  severity: z.enum(["ok", "warning", "error"]),
+  message: z.string(),
+  path: z.string().optional(),
+  line: z.number().optional(),
+});
+const commandOut = z.object({
+  kind: z.literal("command"),
+  command: z.string(),
+  status: z.number().nullable(),
+  signal: nullableString,
+  stdout: z.string(),
+  stderr: z.string(),
+  timedOut: z.boolean(),
+});
+const noopOut = z.object({
+  kind: z.literal("no-op"),
+  message: z.string(),
+  command: z.string(),
+});
+const changeOut = z.object({
+  path: z.string(),
+  beforeHash: nullableString,
+  afterHash: nullableString,
+  action: z.enum(["create", "update", "delete"]),
+});
+const operationSummaryOut = z.object({
+  kind: z.enum(["patch", "format", "flake-lock-update"]),
+  operationId: z.string(),
+  approvalHash: z.string(),
+  createdAt: z.string(),
+  changes: z.array(changeOut),
+});
+const patchOperationOut = operationSummaryOut.extend({kind: z.literal("patch"), diff: z.string()});
+const formatOperationOut = operationSummaryOut.extend({kind: z.literal("format"), diff: z.string(), command: z.string()});
+const flakeLockOperationOut = operationSummaryOut.extend({kind: z.literal("flake-lock-update"), diff: z.string(), command: z.string()});
+const workingTreeOperationOut = z.object({
+  kind: z.literal("working-tree-commit"),
+  operationId: z.string(),
+  approvalHash: z.string(),
+  createdAt: z.string(),
+  paths: z.array(z.string()).describe("Every reviewed dirty path; the commit list must cover exactly this set."),
+  diff: z.string(),
+});
+const applyResultOut = operationSummaryOut.extend({applied: z.literal(true)});
+// Multi-result tools. This SDK projects only OBJECT output schemas: normalizeObjectSchema
+// returns undefined for a union (zod-compat.js:109,120), which both hides the schema from
+// tools/list and breaks call-time validation. A discriminated union is therefore unusable
+// here, so each of these is one object keyed by an enum `kind`, with the fields common to
+// every branch required and the branch-specific ones optional.
+const envelopeOptionalFields = {
+  status: z.number().nullable().optional(),
+  signal: nullableString.optional(),
   stdout: z.string().optional(),
   stderr: z.string().optional(),
   timedOut: z.boolean().optional(),
-});
-const overviewOut = outputBase({
-  repository: z.string().optional(),
-  files: z.array(z.string()).optional(),
-  fileCount: z.number().optional().describe("Paths listed before fileListLimit is applied."),
-  truncated: z.boolean().optional().describe("True when files was cut to fileListLimit."),
-  fileListLimit: z.number().optional(),
-  flake: z.string().optional(),
-  host: z.string().optional(),
-  fixedIdentifierNote: z.string().optional(),
-});
-const authorityOut = outputBase({
-  repository: z.string().optional(),
-  repositoryBoundary: z.string().optional(),
-  allowedMutations: z.array(z.string()).optional(),
-  userOwnedOperations: z.array(z.string()).optional(),
-  declarativeRuntimeRules: z.array(z.string()).optional(),
-  graphifyBoundary: z.string().optional(),
-  protectedPaths: z.array(z.string()).optional(),
-  argumentGuards: z.array(z.string()).optional(),
-  sourceOfTruth: z.array(z.string()).optional(),
-});
-const declarativeOut = outputBase({repository: z.string().optional(), valid: z.boolean().optional(), findings: z.array(z.any()).optional()});
-const auditOut = outputBase({
-  valid: z.boolean().optional().describe("False whenever any finding is present."),
-  filesScanned: z.number().optional(),
-  findings: z.array(z.any()).optional().describe("Each with kind, path, line, message, and evidence."),
-});
-const repositoryValidationOut = outputBase({documentation: z.any().optional(), mcp: z.any().optional(), flake: z.any().optional()});
-const fileContentOut = outputBase({path: z.string().optional(), content: z.string().optional().describe("Full file text.")});
-const operationOut = outputBase({...operationFields, command: z.string().optional()});
-const preparedOrNoopOut = outputBase({...operationFields, command: z.string().optional(), message: z.string().optional().describe("Present instead of an operation ID when nothing changed.")});
-const workingTreeSummaryOut = outputBase({
-  ...operationFields,
-  paths: z.array(z.string()).optional().describe("Every reviewed dirty path; the commit list must cover exactly this set."),
-});
-const applyOut = outputBase({applied: z.boolean().optional(), ...operationFields});
-const commitResultOut = outputBase({
-  ok: z.boolean().optional(),
-  partial: z.boolean().optional().describe("True when earlier per-file commits landed and a later one failed."),
+};
+const operationBranchFields = {
   operationId: z.string().optional(),
   approvalHash: z.string().optional(),
-  fileCount: z.number().optional(),
-  commits: z.array(z.any()).optional().describe("One command envelope per reviewed path."),
-  beforeStatus: z.any().optional(),
-  afterStatus: z.any().optional(),
+  createdAt: z.string().optional(),
+  changes: z.array(changeOut).optional(),
+  diff: z.string().optional(),
+};
+const formatPrepareOut = z.object({
+  ...envelopeOptionalFields,
+  kind: z.enum(["no-op", "command", "format"]),
+  command: z.string().describe("Present on every branch: the formatter invocation or the failing command."),
+  message: z.string().optional().describe("Set only by the no-op branch."),
+  ...operationBranchFields,
 });
-const commitSuggestionsOut = outputBase({operationId: z.string().optional(), approvalHash: z.string().optional(), commits: z.array(z.any()).optional()});
+const lockPrepareOut = z.object({
+  ...envelopeOptionalFields,
+  kind: z.enum(["no-op", "command", "flake-lock-update"]),
+  command: z.string().describe("Present on every branch: the lock-update invocation or the failing command."),
+  message: z.string().optional().describe("Set only by the no-op branch."),
+  ...operationBranchFields,
+});
+const commitSuggestionsOut = z.object({
+  kind: z.literal("commit-suggestions"),
+  operationId: z.string(),
+  approvalHash: z.string(),
+  commits: z.array(z.object({path: z.string(), message: z.string()})),
+});
+const commitResultOut = z.object({
+  kind: z.literal("commit-result"),
+  ok: z.boolean(),
+  partial: z.boolean().describe("True when earlier per-file commits landed and a later one failed."),
+  operationId: z.string(),
+  approvalHash: z.string(),
+  fileCount: z.number(),
+  beforeStatus: commandOut,
+  commits: z.array(commandOut.extend({path: z.string()})),
+  afterStatus: commandOut,
+});
+// The apply-then-commit path returns no operation handles, unlike the working-tree path.
+const filesCommitResultOut = z.object({
+  kind: z.literal("commit-result"),
+  ok: z.boolean(),
+  partial: z.boolean(),
+  beforeStatus: commandOut,
+  commits: z.array(commandOut.extend({path: z.string()})),
+  afterStatus: commandOut,
+});
+const filesCommitOut = z.object({
+  ...envelopeOptionalFields,
+  kind: z.enum(["command", "commit-result"]),
+  command: z.string().optional().describe("Set only by the command branch, when staging failed."),
+  ok: z.boolean().optional(),
+  partial: z.boolean().optional(),
+  beforeStatus: commandOut.optional(),
+  commits: z.array(commandOut.extend({path: z.string()})).optional(),
+  afterStatus: commandOut.optional(),
+});
+const overviewOut = z.object({
+  kind: z.literal("project-overview"),
+  repository: z.string(),
+  files: z.array(z.string()),
+  fileCount: z.number().describe("Paths listed before fileListLimit is applied."),
+  truncated: z.boolean().describe("True when files was cut to fileListLimit."),
+  fileListLimit: z.number(),
+  flake: z.string(),
+  host: z.string(),
+  fixedIdentifierNote: z.string(),
+});
+const authorityOut = z.object({
+  kind: z.literal("authority-contract"),
+  repository: z.string(),
+  repositoryBoundary: z.string(),
+  allowedMutations: z.array(z.string()),
+  userOwnedOperations: z.array(z.string()),
+  declarativeRuntimeRules: z.array(z.string()),
+  graphifyBoundary: z.string(),
+  protectedPaths: z.array(z.string()),
+  argumentGuards: z.array(z.string()),
+  sourceOfTruth: z.array(z.string()),
+});
+const declarativeOut = z.object({
+  kind: z.literal("declarative-contract"),
+  repository: z.string(),
+  valid: z.boolean(),
+  findings: z.array(contractFindingOut),
+});
+const auditOut = z.object({
+  kind: z.literal("documentation-audit"),
+  valid: z.boolean().describe("False whenever any finding is present."),
+  filesScanned: z.number(),
+  findings: z.array(documentationFindingOut),
+});
+const repositoryValidationOut = z.object({
+  kind: z.literal("repository-validation"),
+  documentation: auditOut,
+  mcp: commandOut,
+  flake: commandOut,
+});
+const fileContentOut = z.object({
+  kind: z.literal("file-content"),
+  path: z.string(),
+  content: z.string().describe("Full file text."),
+});
 
 function pruneOperationStore<T extends {createdAt: string}>(store: Map<string, T>, now = Date.now()) {
   const cutoff = now - operationTtlMs;
@@ -748,7 +857,7 @@ server.registerTool("prepare_working_tree_commit", {
   title: "Prepare a working-tree commit",
   description: "Prepare the complete visible dirty working tree for review; returns a diff and approval hash without modifying the checkout. Unlike every other tool, this snapshot may include secrets/** and the public template vps/web-research/.env.example, and it fails as a whole if any dirty path is a symlink, a private key, or a ':'-prefixed Git pathspec name.",
   inputSchema: {},
-  outputSchema: workingTreeSummaryOut,
+  outputSchema: workingTreeOperationOut,
   annotations: prepareLocal,
 }, async () => {
   return result(workingTreeOperationSummary(await createWorkingTreeOperation()));
@@ -826,7 +935,7 @@ server.registerTool("prepare_patch", {
   title: "Prepare a file patch",
   description: "Prepare exact file contents against the current checkout without modifying it; the returned operation requires approval before application with apply_approved_patch. Set content to null to delete a file.",
   inputSchema: {changes: z.array(changeSchema).min(1)},
-  outputSchema: operationOut,
+  outputSchema: patchOperationOut,
   annotations: prepareLocal,
 }, async ({changes}) => {
   if (changes.length > maxOperationPaths) fail(`A patch may contain at most ${maxOperationPaths} paths.`);
@@ -851,7 +960,7 @@ server.registerTool("prepare_format", {
   title: "Prepare a formatter patch",
   description: "Run the flake formatter in a temporary isolated workspace and return a reviewable patch without modifying the checkout.",
   inputSchema: {paths: z.array(z.string()).default([]).describe("Nix files to format. An empty list formats every tracked and untracked .nix file. Reports only a message when formatting changes nothing.")},
-  outputSchema: preparedOrNoopOut,
+  outputSchema: formatPrepareOut,
   annotations: prepareNetworked,
 }, async ({paths}) => {
   const workspace = await createWorkspace();
@@ -873,7 +982,7 @@ server.registerTool("prepare_flake_lock_update", {
   title: "Prepare a flake.lock update",
   description: "Update flake.lock in a temporary isolated workspace and return only that file's reviewable patch.",
   inputSchema: {},
-  outputSchema: preparedOrNoopOut,
+  outputSchema: lockPrepareOut,
   annotations: prepareNetworked,
 }, async () => {
   const workspace = await createWorkspace();
@@ -920,7 +1029,7 @@ server.registerTool("apply_approved_patch", {
   title: "Apply an approved patch",
   description: "Apply an exact prepared operation after its ID and approval hash have been reviewed.",
   inputSchema: {operationId: z.string().describe("Operation ID returned by a prepare tool."), approvalHash: z.string().describe("Approval hash returned with that operation ID; both are rechecked before any write.")},
-  outputSchema: applyOut,
+  outputSchema: applyResultOut,
   annotations: modifyDestructive,
 }, async ({operationId, approvalHash}) => {
   const operation = getOperation(operationId, approvalHash);
@@ -964,7 +1073,7 @@ server.registerTool("git_commit_files", {
     path: z.string().describe("One path from the prepared operation, which must already have been applied with apply_approved_patch."),
     message: z.string().min(1).max(4096).describe("Commit subject ending with a period. Any further line must be a valid 'Co-authored-by: Name <email>' trailer. Screened as argv, so avoid a semicolon anywhere in the message."),
   })).min(1)},
-  outputSchema: commitResultOut,
+  outputSchema: filesCommitOut,
   annotations: modifyAdditive,
 }, async ({operationId, approvalHash, commits}) => {
   const operation = getOperation(operationId, approvalHash);
