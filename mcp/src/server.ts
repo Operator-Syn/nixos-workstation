@@ -557,7 +557,7 @@ server.tool("validate_repository", "Run the bounded documentation audit, MCP tes
   });
 });
 
-server.tool("prepare_working_tree_commit", "Prepare the complete visible dirty working tree for review; returns a diff and approval hash without modifying the checkout.", {}, {title: "Prepare a working-tree commit", ...prepareLocal}, async () => {
+server.tool("prepare_working_tree_commit", "Prepare the complete visible dirty working tree for review; returns a diff and approval hash without modifying the checkout. Unlike every other tool, this snapshot may include secrets/** and the public template vps/web-research/.env.example, and it fails as a whole if any dirty path is a symlink, a private key, or a ':'-prefixed Git pathspec name.", {}, {title: "Prepare a working-tree commit", ...prepareLocal}, async () => {
   return result(workingTreeOperationSummary(await createWorkingTreeOperation()));
 });
 
@@ -670,7 +670,7 @@ server.tool("prepare_flake_lock_update", "Update flake.lock in a temporary isola
   }
 });
 
-server.tool("validate_flake", "Run the read-only flake check on the checkout or on a prepared operation without applying it.", {operationId: z.string().optional(), approvalHash: z.string().optional()}, {title: "Validate the flake", ...inspectNetworked}, async ({operationId, approvalHash}) => {
+server.tool("validate_flake", "Run the read-only flake check on the checkout, or on a prepared patch, format, or flake-lock operation without applying it. Omitting both arguments validates the current checkout; a prepare_working_tree_commit ID is not eligible here.", {operationId: z.string().optional().describe("A patch, format, or flake-lock operation ID. A working-tree operation ID is not resolvable here and reports as invalid or stale."), approvalHash: z.string().optional().describe("Required together with operationId; an approval hash alone is rejected.")}, {title: "Validate the flake", ...inspectNetworked}, async ({operationId, approvalHash}) => {
   if (!operationId && approvalHash) fail("An approval hash requires an operation ID.");
   if (!operationId) return result(runAllowed("nix", ["flake", "check", "--no-build", "--show-trace"], repoRoot, 300_000));
   if (!approvalHash) fail("An approval hash is required to validate a prepared operation.");
@@ -705,7 +705,7 @@ server.tool("apply_approved_patch", "Apply an exact prepared operation after its
   return result({applied: true, ...operationSummary(operation)});
 });
 
-server.tool("prepare_commits", "After a prepared operation has been applied, suggest a one-sentence commit subject per changed file (verb + path, e.g. 'Add compatibility for non-agent editing.'); the reviewer edits it to state what the change does before committing.", {operationId: z.string(), approvalHash: z.string()}, {title: "Suggest commit subjects", ...inspectLocal}, async ({operationId, approvalHash}) => {
+server.tool("prepare_commits", "Suggest a one-sentence commit subject per changed file for a prepared operation that has already been applied with apply_approved_patch (verb + path, e.g. 'Add compatibility for non-agent editing.'). Writes no commits and rejects a working-tree operation; edit each subject before passing it to git_commit_files.", {operationId: z.string(), approvalHash: z.string()}, {title: "Suggest commit subjects", ...inspectLocal}, async ({operationId, approvalHash}) => {
   const operation = getOperation(operationId, approvalHash);
   await ensureOperationCurrent({...operation, changes: operation.changes.map((change) => ({...change, before: change.after, beforeHash: change.afterHash}))});
   const commits = operation.changes.map((change) => {
