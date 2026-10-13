@@ -8,6 +8,12 @@ export type ContractFinding = {
   line?: number;
 };
 
+// The single enumeration of tokens screened from every spawned command's argv. server.ts
+// imports this for its spawn guard, and the contract prose below is derived from it, so
+// the enforcement and the documentation cannot drift apart.
+export const screenedArgvTokens = [";", "sudo", "nixos-rebuild"] as const;
+const screenedTokenList = screenedArgvTokens.map((token) => `'${token}'`).join(", ");
+
 export const authorityContract = {
   repositoryBoundary: "The MCP may read and mutate only approved files inside the configured repository root.",
   allowedMutations: [
@@ -39,7 +45,7 @@ export const authorityContract = {
     "/srv/obsidian/ (outside the repository boundary entirely; no tool reaches it)",
   ],
   argumentGuards: [
-    "Every argument of every spawned command is screened as a substring for ';', 'sudo', and 'nixos-rebuild'. User-supplied text becomes argv, so commit subjects, paths, and search patterns are screened too; the rejection error names the token and the argument.",
+    `Every argument of every spawned command is screened as a substring for ${screenedTokenList}. User-supplied text becomes argv, so commit subjects, paths, and search patterns are screened too; the rejection error names the token and the argument.`,
     "Commit subjects must end with a period. Additional lines are permitted only as valid 'Co-authored-by: Name <email>' trailers.",
   ],
   sourceOfTruth: [
