@@ -8,7 +8,7 @@ import {McpServer} from "@modelcontextprotocol/sdk/server/mcp.js";
 import {StdioServerTransport} from "@modelcontextprotocol/sdk/server/stdio.js";
 import {z} from "zod";
 import {fileURLToPath} from "node:url";
-import {authorityContract, validateDeclarativeContract} from "./contract.ts";
+import {authorityContract, screenedArgvTokens, validateDeclarativeContract} from "./contract.ts";
 
 const serverRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const repoRoot = resolve(process.env.NIX_CONFIG_MCP_ROOT ?? serverRoot);
@@ -417,11 +417,9 @@ async function createWorkspace(): Promise<string> {
   return workspace;
 }
 
-// Screened as substrings over every argv element of every spawned command, so
-// these also constrain user-supplied text: commit messages, paths, and search
-// patterns. Declared in the affected tool schemas and named in the error below.
-const screenedArgvTokens = [";", "sudo", "nixos-rebuild"];
-
+// The screened tokens live in contract.ts so enforcement and the published contract
+// cannot drift. They are matched as substrings against every argv element, which is why
+// user-supplied text (commit messages, paths, search patterns) is covered too.
 function screenedToken(value: string): string | undefined {
   return screenedArgvTokens.find((token) => value.includes(token));
 }
