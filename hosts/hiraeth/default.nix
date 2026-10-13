@@ -1,4 +1,8 @@
-{inputs, lib, ...}: {
+{
+  inputs,
+  lib,
+  ...
+}: {
   imports = [
     inputs.aagl.nixosModules.default
     ./hardware-configuration.nix
@@ -11,7 +15,6 @@
     ../../modules/nixos/desktop/camera-privacy.nix
     ../../modules/nixos/desktop/obs-studio.nix
     ../../modules/nixos/desktop/plasma.nix
-    ../../modules/nixos/desktop/power-profile-enforcer.nix
 
     ../../modules/nixos/development/nix-ld.nix
     ../../modules/nixos/development/python-shell.nix
@@ -36,11 +39,11 @@
   nix.settings = inputs.aagl.nixConfig;
 
   programs._1password-gui = {
-    enable = true;
+    enable = false;
     polkitPolicyOwners = ["yashindo"];
   };
 
-  programs._1password.enable = true;
+  programs._1password.enable = false;
 
   networking.hostName = "Hiraeth";
 
