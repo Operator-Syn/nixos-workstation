@@ -14,15 +14,31 @@ describe("project MCP safety policy", () => {
 
   test("requires approval hashes for mutation tools", async () => {
     const source = await Bun.file("mcp/src/server.ts").text();
-    expect(source).toContain("approvalHash: z.string()");
+    // Required handles on the mutation tools and the commit-suggestion tool.
+    // validate_flake's deliberately optional pair does not match, since the check
+    // counts only `z.string()` with no `.optional()` between it and the next token.
+    const requiredHandles = [...source.matchAll(/approvalHash: z\.string\(\)/g)].length;
+    expect(requiredHandles).toBeGreaterThanOrEqual(3);
+    // And rechecked in the handler by both operation families.
     expect(source).toContain("getOperation(operationId, approvalHash)");
+    expect(source).toContain("getWorkingTreeOperation(operationId, approvalHash)");
+  });
+
+  test("declares an output schema for every registered tool", async () => {
+    const source = await Bun.file("mcp/src/server.ts").text();
+    // structuredContent is mandatory once an output schema exists, so a tool that
+    // declares one without mirroring its payload would fail after its handler ran.
+    const registered = [...source.matchAll(/server\.registerTool\("/g)].length;
+    const withOutputSchema = [...source.matchAll(/outputSchema: \w+/g)].length;
+    expect(registered).toBeGreaterThan(0);
+    expect(withOutputSchema).toBe(registered);
   });
 
   test("keeps verification helpers fixed-scope", async () => {
     const source = await Bun.file("mcp/src/server.ts").text();
-    expect(source).toContain('server.tool("audit_documentation"');
-    expect(source).toContain('server.tool("validate_mcp"');
-    expect(source).toContain('server.tool("validate_repository"');
+    expect(source).toContain('server.registerTool("audit_documentation"');
+    expect(source).toContain('server.registerTool("validate_mcp"');
+    expect(source).toContain('server.registerTool("validate_repository"');
     expect(source).toContain('runFixed("bun", ["test", "mcp"]');
     expect(source).toContain('runAllowed("nix", ["flake", "check", "--no-build", "--show-trace"]');
   });
