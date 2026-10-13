@@ -133,7 +133,7 @@ launches, and the Discord Professional module stays available but disabled.
 NetBird's system daemon remains declared in `modules/nixos/netbird.nix`. The
 Home Manager app module installs the matching tray UI and autostarts its
 packaged desktop entry with the KDE session; this starts the interface at login
-while leaving tunnel startup to the system service. Its Linux notifications request a three-second timeout without changing other applications.
+while leaving tunnel startup to the system service. Its Linux notifications request a three-second timeout without changing other applications. The UI override vendors and patches Wails, so its local `vendorHash` must be refreshed from the patched Go-module output when the locked NetBird version changes; the upstream proxy-vendor hash is not interchangeable.
 
 The Obsidian module exposes `obsidian` (CLI), `obsidian-cli` (compatibility
 name), and `obsidian-desktop` (GUI). The CLI is provisioned at
@@ -160,6 +160,63 @@ upstream `main`, while `flake.lock` keeps each installed revision
 reproducible until the next explicit flake update. Home Manager installs the
 application and its Computer Use runtime dependencies, but Hermes owns the
 writable `~/.hermes/config.yaml` and model selection.
+
+Local Mnemosyne embedding generation is also packaged in this shared CLI/Desktop
+Python runtime. The module uses the exact Hermes interpreter's Nix `fastembed`
+and `numpy` packages (including ONNX Runtime), appended through a site-packages
+`.pth` file so sealed Hermes packages retain precedence. Mnemosyne has no
+upstream dependency group, and the upstream `extraPythonPackages` hook only
+extends CLI `PYTHONPATH` and rejects shared-package collisions; this local
+composition also covers Desktop and isolated Python subprocesses. The external
+provider venv, its plugin files, and memory databases are not changed by this
+embedding dependency addition. Model downloads remain in Mnemosyne's writable
+cache. Activation and a Hermes restart are user-owned prerequisites for live
+use; existing memories are not automatically migrated or backfilled.
+
+The shared package also carries a small source patch that extends the external
+provider's argparse tree with `hermes mnemosyne reindex`; it does not install a
+second `hermes` launcher or edit the provider venv. This is a local adapter for
+Mnemosyne 3.15.1, not a Hermes upstream command. Existing subcommands stay with
+the provider, and a future native `reindex` takes precedence. Re-test the adapter
+when updating either Hermes or the external provider.
+
+`hermes mnemosyne reindex --dry-run` reports the resolved database, active model,
+dimension and working/episodic counts through a read-only SQLite connection,
+without initializing/migrating the provider or creating a missing database.
+Routing follows the provider's config precedence, profile-isolation bank name,
+`HERMES_HOME` and `MNEMOSYNE_DATA_DIR`; it never implicitly reindexes the shared
+surface or every bank. `--model NAME` affects only this process and does not
+save configuration. The preview does not load/test embedding weights.
+
+A real rebuild requires all writers to that database to be stopped **by the
+operator** first. The command warns and asks for confirmation; EOF or anything
+other than yes cancels before backup/write. `--yes` explicitly acknowledges the
+offline requirement, but does not stop services or prove no writer is running.
+An owner-only SQLite backup named `mnemosyne.db.reindex-*.backup` is always made
+beside the exact target and integrity-checked before writing. There is no
+`--no-backup` bypass. The core API commits per batch: failure can leave a partial
+rebuild. Errors/incomplete coverage exit nonzero and retain the backup; verify
+recovery before restarting writers. Reindex rebuilds working/episodic vectors
+and resets the unused facts-vector table, not source memory text or IDs.
+
+Candidate-only verification (no activation or real-memory rebuild):
+
+```sh
+nix build .#nixosConfigurations.nixos.config.home-manager.users.yashindo.programs.hermes-agent.package --no-link --print-out-paths
+nix eval --raw .#nixosConfigurations.nixos.config.home-manager.users.yashindo.programs.hermes-agent.package.hermesVenv
+pipenv run python -m unittest discover -s tests -p test_mnemosyne_reindex.py
+pipenv run python scripts/test_hermes_mnemosyne_reindex.py \
+  <candidate>/bin/hermes <candidate-venv>/bin/python3 \
+  <external-site-packages>/hermes_memory_provider <populated-fastembed-cache>
+```
+
+The integration harness creates its own home, configs, banks and databases under
+`TMPDIR`, copies only embedding weights, and verifies actual local vectors,
+source preservation, backups, preview/cancellation, failure codes and profile
+routing. It accepts no input memory database. Add new repository source files to
+Git's index (intent-to-add is sufficient) before a Git-flake build so Nix can see
+them. Building/testing a candidate does not change the installed CLI; activation
+and restarts remain separate user-owned operations.
 
 The Nix-wrapped CLI treats its sealed Python environment and PATH tools as
 externally managed. Gateway unit refreshes invoke the store Python directly,
