@@ -71,10 +71,6 @@
     sudo -k
   '';
 
-  update-codex = pkgs.writeShellScriptBin "update-codex" ''
-    exec ${pkgs.bash}/bin/bash "$HOME/nix-config/scripts/update_codex.sh" "$@"
-  '';
-
   hermes-restart = pkgs.writeShellScriptBin "hermes-restart" ''
         set -euo pipefail
 
@@ -328,7 +324,6 @@ in {
     hermes-restart
     nvrun
     rebuild
-    update-codex
     update-hardware
     update-system
     wifi-hotspot
