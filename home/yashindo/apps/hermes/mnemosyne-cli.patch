@@ -1,0 +1,13 @@
+--- a/hermes_cli/main.py
++++ b/hermes_cli/main.py
+@@ -3408,6 +3408,10 @@
+     cmd_info["setup_fn"](plugin_parser)
+     if cmd_info.get("handler_fn") is not None:
+         plugin_parser.set_defaults(func=cmd_info["handler_fn"])
++    # Nix-local adapter for the external provider's existing argparse tree.
++    if cmd_info["name"] == "mnemosyne":
++        from hermes_cli.mnemosyne_reindex import register_reindex
++        register_reindex(plugin_parser)
+
+
+ def _register_plugin_cli_commands(subparsers) -> None:
