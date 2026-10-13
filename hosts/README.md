@@ -159,6 +159,31 @@ management from entering the states associated with the observed correctable
 NVIDIA/root-port errors under load. This trades some idle power savings for link
 stability; verify the policy and AER counters after each reboot.
 
+### CUDA driver access for foreign binaries
+
+The userspace driver library `libcuda.so.1` is installed under
+`/run/opengl-driver/lib`, which is not on the dynamic loader search path for
+"foreign" (non-Nix) ELF binaries. `nvidia.nix` therefore adds
+`config.hardware.nvidia.package` to `programs.nix-ld.libraries`, so foreign
+programs such as the `uv`-managed CPython that runs TensorFlow and JupyterLab
+can `dlopen` `libcuda.so.1`. `libcuda.so.1` resolves its sibling driver
+libraries through its own RUNPATH into that same package, so this single entry
+is sufficient.
+
+The scope is deliberate: `programs.nix-ld` only affects foreign binaries, and
+Nix binaries keep their own RPATHs, so no global `LD_LIBRARY_PATH` is set and no
+Nix-managed program changes its library resolution. This is a declarative
+configuration change; the driver, kernel modules, PRIME/offload settings, and
+hybrid graphics setup are unchanged.
+
+The GPU compute runtime libraries themselves are project dependencies, not host
+configuration: a plain `tensorflow` wheel omits the CUDA 12 runtime and
+everything below `libcuda.so.1` (cuDNN, cuBLAS, cuFFT, ...). Projects that need
+GPU TensorFlow must depend on `tensorflow[and-cuda]`, whose `nvidia-*-cu12`
+wheels install the CUDA 12 runtime into the environment's `site-packages`,
+where TensorFlow's RUNPATH finds them. Only the driver library comes from this
+host configuration.
+
 Before activation, verify the candidate generation contains:
 
 ```text
