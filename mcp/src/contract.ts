@@ -26,12 +26,21 @@ export const authorityContract = {
     "Live activation and runtime verification are separate from source and build validation.",
   ],
   graphifyBoundary: "Graphify is read-only discovery; Nix source and flake checks remain authoritative.",
+  // Kept aligned with safeRelativePath/safePath in src/server.ts. A contract that
+  // lists fewer denials than the code applies is worse than no contract, because
+  // agents trust it and then get unexplained failures.
   protectedPaths: [
-    "secrets/",
-    ".env*",
-    ".git/",
-    "private keys and certificates",
-    "/srv/obsidian/",
+    "secrets/ (denied by every tool except the reviewed working-tree commit path)",
+    ".env* (denied except the public template vps/web-research/.env.example, which only the reviewed working-tree commit path may include)",
+    ".git/ and node_modules/, at any path component",
+    "private keys and certificates (id_rsa, id_ed25519, *.pem, *.key, *.p12, *.pfx, *.asc)",
+    "any symbolic link, at any path component",
+    "any path that escapes the repository root, contains a NUL byte, or whose normalized name begins with ':' (Git pathspec magic)",
+    "/srv/obsidian/ (outside the repository boundary entirely; no tool reaches it)",
+  ],
+  argumentGuards: [
+    "Every argument of every spawned command is screened as a substring for ';', 'sudo', and 'nixos-rebuild'. User-supplied text becomes argv, so commit subjects, paths, and search patterns are screened too; the rejection error names the token and the argument.",
+    "Commit subjects must end with a period. Additional lines are permitted only as valid 'Co-authored-by: Name <email>' trailers.",
   ],
   sourceOfTruth: [
     "Nix source",
