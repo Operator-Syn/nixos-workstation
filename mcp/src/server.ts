@@ -286,7 +286,7 @@ async function auditDocumentation() {
   const listed = runAllowed("git", ["ls-files", "--cached", "--others", "--exclude-standard"], repoRoot);
   if (listed.status !== 0) return {kind: "documentation-audit", valid: false, filesScanned: 0, findings: [{kind: "stale-reference", path: "", message: listed.stderr || "Could not list repository files."}]};
 
-  const markdownPaths = visibleGitLines(listed.stdout)
+  const markdownPaths = visibleGitLines(listed.stdout, 0)
     .filter((path) => path.endsWith(".md") && path !== "AGENTS.md" && !path.startsWith(".codex/") && !path.startsWith("secrets/"));
   const findings: DocumentationFinding[] = [];
   const staleReferences = [
@@ -305,11 +305,20 @@ async function auditDocumentation() {
       for (const match of line.matchAll(/`([^`]+)`/g)) {
         const candidate = match[1].replace(/[),.;:]$/, "");
         if (!candidate.includes("/") || /\s|[:+*()<>"'=]/.test(candidate) || candidate.includes("://") || candidate.includes("$") || candidate.startsWith("/") || candidate.startsWith("~")) continue;
+        // A dotted IP or CIDR range in backticks is not a repository path.
+        if (/^\d{1,3}(\.\d{1,3}){3}(\/\d{1,2})?$/.test(candidate)) continue;
         const candidates = [candidate];
         if (path.startsWith("modules/") && !candidate.startsWith("modules/")) candidates.push(`modules/nixos/${candidate}`);
         const exists = candidates.some((value) => {
+          let relativePath: string;
           try {
-            const relativePath = safeRelativePath(value);
+            relativePath = safeRelativePath(value);
+          } catch {
+            // Policy-denied paths cannot be validated and are not claims we may
+            // check; calling them missing would invent a finding.
+            return true;
+          }
+          try {
             lstatSync(resolve(repoRoot, relativePath));
             return true;
           } catch {
@@ -366,9 +375,12 @@ function unifiedDiff(change: Change): string {
   return output.join("\n");
 }
 
-function visibleGitLines(output: string): string[] {
+// Only `git status --short` lines carry a status prefix. `git ls-files` output has
+// none, so callers pass 0 — slicing three characters off a real path silently ate
+// the first directory segment and dropped any path whose 4th character was "/".
+function visibleGitLines(output: string, statusPrefixWidth = 3): string[] {
   return output.split("\n").filter((line) => {
-    const path = line.slice(3).split(" -> ").at(-1)?.trim();
+    const path = line.slice(statusPrefixWidth).split(" -> ").at(-1)?.trim();
     if (!path) return true;
     try {
       safeRelativePath(path);
@@ -532,7 +544,7 @@ const server = new McpServer({name: "nix-config-project-mcp", version: "0.1.0"})
 
 server.tool("read_project_overview", "List non-sensitive repository files and the primary NixOS entry points without modifying the checkout.", {}, {title: "Read project overview", ...inspectLocal}, async () => {
   const output = runAllowed("git", ["ls-files", "--cached", "--others", "--exclude-standard"], repoRoot);
-  const visible = visibleGitLines(output.stdout).filter(Boolean);
+  const visible = visibleGitLines(output.stdout, 0).filter(Boolean);
   return result({
     kind: "project-overview",
     repository: repoRoot,
