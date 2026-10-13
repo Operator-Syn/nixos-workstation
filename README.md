@@ -49,7 +49,6 @@ This repo is meant to be readable first: each folder owns one layer of the syste
 | Run the rebuild helper directly | `rebuild` |
 | Restart Hermes gateway and running Desktop backends | `hermes-restart` |
 | Update flake inputs and rebuild | `update-system` |
-| Resolve and update the latest Codex CLI source | `update-codex` |
 | Refresh hardware configuration only | `uh` |
 | Direct low-level system switch | `sudo nixos-rebuild switch --flake ~/nix-config#nixos --cores "$(nproc)" --show-trace` |
 | Enter default dev shell | `nix develop ~/nix-config` |
@@ -66,7 +65,8 @@ This repo is meant to be readable first: each folder owns one layer of the syste
 
 `hermes-restart` restarts the user-owned `hermes-gateway.service` and restarts Hermes Desktop only when it was already running. Use `hermes-restart --gateway` for the gateway alone or `hermes-restart --desktop` to start Desktop even when it is closed. This is a targeted user-session restart; it does not activate NixOS or restart unrelated services.
 
-`update-codex` resolves the latest stable OpenAI Codex CLI archive from npm, updates only its Nix version and SRI hash, and does not activate or commit the change. Review the resulting diff before running `rebuild`.
+Hermes includes the `computer-use` and `firecrawl` dependency groups in its sealed Nix Python environment, declared in `home/yashindo/apps/hermes-desktop.nix`. Firecrawl extraction therefore does not rely on runtime lazy installation of its Python SDK. Local Mnemosyne embeddings use interpreter-matched Nix `fastembed` and `numpy` packages in the shared CLI/Desktop Python runtime; no compiled dependencies are imported from the external provider venv. Dependency changes require a rebuild, activation, and a Hermes restart before they affect the running application. This enables new embedding generation, not migration or backfill of existing memories.
+
 
 ## How The Layers Fit
 
