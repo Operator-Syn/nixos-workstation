@@ -75,6 +75,78 @@ const prepareNetworked = {readOnlyHint: true, destructiveHint: false, idempotent
 const modifyAdditive = {readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false};
 const modifyDestructive = {readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false};
 
+// Output schemas. Every tool declares one, and `result()` mirrors the payload into
+// structuredContent, which the SDK requires once an output schema exists. They are
+// deliberately loose: output validation runs AFTER the handler, so a strict schema
+// would report an already-successful commit as a failed call. Describe, do not
+// constrain.
+const outputBase = (fields: z.ZodRawShape) =>
+  z.looseObject({
+    kind: z.string().optional().describe("Payload discriminator: 'command', 'no-op', 'commit-result', an operation kind, or a descriptive result name."),
+    ...fields,
+  });
+const operationFields = {
+  operationId: z.string().optional(),
+  approvalHash: z.string().optional(),
+  createdAt: z.string().optional(),
+  changes: z.array(z.any()).optional().describe("Per path: beforeHash, afterHash, and action (create, update, or delete)."),
+  diff: z.string().optional(),
+};
+const commandOut = outputBase({
+  command: z.string().optional().describe("The command line that ran."),
+  status: z.number().nullable().optional().describe("Process exit status; non-zero means the command failed."),
+  stdout: z.string().optional(),
+  stderr: z.string().optional(),
+  timedOut: z.boolean().optional(),
+});
+const overviewOut = outputBase({
+  repository: z.string().optional(),
+  files: z.array(z.string()).optional(),
+  fileCount: z.number().optional().describe("Paths listed before fileListLimit is applied."),
+  truncated: z.boolean().optional().describe("True when files was cut to fileListLimit."),
+  fileListLimit: z.number().optional(),
+  flake: z.string().optional(),
+  host: z.string().optional(),
+  fixedIdentifierNote: z.string().optional(),
+});
+const authorityOut = outputBase({
+  repository: z.string().optional(),
+  repositoryBoundary: z.string().optional(),
+  allowedMutations: z.array(z.string()).optional(),
+  userOwnedOperations: z.array(z.string()).optional(),
+  declarativeRuntimeRules: z.array(z.string()).optional(),
+  graphifyBoundary: z.string().optional(),
+  protectedPaths: z.array(z.string()).optional(),
+  argumentGuards: z.array(z.string()).optional(),
+  sourceOfTruth: z.array(z.string()).optional(),
+});
+const declarativeOut = outputBase({repository: z.string().optional(), valid: z.boolean().optional(), findings: z.array(z.any()).optional()});
+const auditOut = outputBase({
+  valid: z.boolean().optional().describe("False whenever any finding is present."),
+  filesScanned: z.number().optional(),
+  findings: z.array(z.any()).optional().describe("Each with kind, path, line, message, and evidence."),
+});
+const repositoryValidationOut = outputBase({documentation: z.any().optional(), mcp: z.any().optional(), flake: z.any().optional()});
+const fileContentOut = outputBase({path: z.string().optional(), content: z.string().optional().describe("Full file text.")});
+const operationOut = outputBase({...operationFields, command: z.string().optional()});
+const preparedOrNoopOut = outputBase({...operationFields, command: z.string().optional(), message: z.string().optional().describe("Present instead of an operation ID when nothing changed.")});
+const workingTreeSummaryOut = outputBase({
+  ...operationFields,
+  paths: z.array(z.string()).optional().describe("Every reviewed dirty path; the commit list must cover exactly this set."),
+});
+const applyOut = outputBase({applied: z.boolean().optional(), ...operationFields});
+const commitResultOut = outputBase({
+  ok: z.boolean().optional(),
+  partial: z.boolean().optional().describe("True when earlier per-file commits landed and a later one failed."),
+  operationId: z.string().optional(),
+  approvalHash: z.string().optional(),
+  fileCount: z.number().optional(),
+  commits: z.array(z.any()).optional().describe("One command envelope per reviewed path."),
+  beforeStatus: z.any().optional(),
+  afterStatus: z.any().optional(),
+});
+const commitSuggestionsOut = outputBase({operationId: z.string().optional(), approvalHash: z.string().optional(), commits: z.array(z.any()).optional()});
+
 function pruneOperationStore<T extends {createdAt: string}>(store: Map<string, T>, now = Date.now()) {
   const cutoff = now - operationTtlMs;
   for (const [id, operation] of store) {
@@ -108,7 +180,12 @@ function text(value: unknown) {
 }
 
 function result(value: unknown) {
-  return {content: [{type: "text" as const, text: text(value)}]};
+  // structuredContent is mandatory for any tool that declares an output schema.
+  const structuredContent =
+    typeof value === "object" && value !== null && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {value};
+  return {content: [{type: "text" as const, text: text(value)}], structuredContent};
 }
 
 function fail(message: string): never {
@@ -332,7 +409,7 @@ async function auditDocumentation() {
 
   const serverSource = await readSafeFile("mcp/src/server.ts") ?? "";
   const mcpReadme = await readSafeFile("mcp/README.md") ?? "";
-  for (const match of serverSource.matchAll(/server\.tool\("([^"]+)"/g)) {
+  for (const match of serverSource.matchAll(/server\.(?:tool|registerTool)\("([^"]+)"/g)) {
     const name = match[1];
     if (!mcpReadme.includes(`\`${name}\``)) findings.push({kind: "mcp-documentation", path: "mcp/README.md", message: `MCP tool is not documented: ${name}`});
   }
@@ -542,7 +619,13 @@ function getOperation(id: string, approvalHash: string): Operation {
 
 const server = new McpServer({name: "nix-config-project-mcp", version: "0.1.0"});
 
-server.tool("read_project_overview", "List non-sensitive repository files and the primary NixOS entry points without modifying the checkout.", {}, {title: "Read project overview", ...inspectLocal}, async () => {
+server.registerTool("read_project_overview", {
+  title: "Read project overview",
+  description: "List non-sensitive repository files and the primary NixOS entry points without modifying the checkout.",
+  inputSchema: {},
+  outputSchema: overviewOut,
+  annotations: inspectLocal,
+}, async () => {
   const output = runAllowed("git", ["ls-files", "--cached", "--others", "--exclude-standard"], repoRoot);
   const visible = visibleGitLines(output.stdout, 0).filter(Boolean);
   return result({
@@ -558,11 +641,23 @@ server.tool("read_project_overview", "List non-sensitive repository files and th
   });
 });
 
-server.tool("read_authority_contract", "Explain the MCP repository boundary, approval model, declarative rules, and protected paths.", {}, {title: "Read authority contract", ...inspectLocal}, async () => {
+server.registerTool("read_authority_contract", {
+  title: "Read authority contract",
+  description: "Explain the MCP repository boundary, approval model, declarative rules, and protected paths.",
+  inputSchema: {},
+  outputSchema: authorityOut,
+  annotations: inspectLocal,
+}, async () => {
   return result({kind: "authority-contract", repository: repoRoot, ...authorityContract});
 });
 
-server.tool("validate_declarative_contract", "Validate declarative and MCP authority conventions from repository source only.", {}, {title: "Validate declarative contract", ...inspectLocal}, async () => {
+server.registerTool("validate_declarative_contract", {
+  title: "Validate declarative contract",
+  description: "Validate declarative and MCP authority conventions from repository source only.",
+  inputSchema: {},
+  outputSchema: declarativeOut,
+  annotations: inspectLocal,
+}, async () => {
   const paths = [
     "mcp/src/server.ts",
   ];
@@ -570,35 +665,77 @@ server.tool("validate_declarative_contract", "Validate declarative and MCP autho
   return result({kind: "declarative-contract", repository: repoRoot, ...validateDeclarativeContract(Object.fromEntries(entries))});
 });
 
-server.tool("read_project_file", "Read one non-sensitive regular file inside the repository.", {path: z.string().describe("Repository-relative path to one regular file. A missing file is an error, not an empty result. The denied path classes and the 512 KiB read cap apply.")}, {title: "Read one project file", ...inspectLocal}, async ({path}) => {
+server.registerTool("read_project_file", {
+  title: "Read one project file",
+  description: "Read one non-sensitive regular file inside the repository.",
+  inputSchema: {path: z.string().describe("Repository-relative path to one regular file. A missing file is an error, not an empty result. The denied path classes and the 512 KiB read cap apply.")},
+  outputSchema: fileContentOut,
+  annotations: inspectLocal,
+}, async ({path}) => {
   const content = await readSafeFile(path);
   if (content === null) fail("The file does not exist.");
   return result({kind: "file-content", path: safeRelativePath(path), content});
 });
 
-server.tool("find_nix_references", "Find text references in Nix files without running arbitrary shell commands. Results silently exclude secrets/** and are limited to *.nix files.", {query: z.string().min(1).describe("ripgrep regular expression, not a literal phrase."), path: z.string().default(".").describe("Repository-relative file or directory to search; defaults to the repository root.")}, {title: "Find references in Nix files", ...inspectLocal}, async ({query, path}) => {
+server.registerTool("find_nix_references", {
+  title: "Find references in Nix files",
+  description: "Find text references in Nix files without running arbitrary shell commands. Results silently exclude secrets/** and are limited to *.nix files.",
+  inputSchema: {query: z.string().min(1).describe("ripgrep regular expression, not a literal phrase."), path: z.string().default(".").describe("Repository-relative file or directory to search; defaults to the repository root.")},
+  outputSchema: commandOut,
+  annotations: inspectLocal,
+}, async ({query, path}) => {
   const target = safeRelativePath(path);
   return result(runAllowed("rg", ["--line-number", "--glob", "*.nix", "--glob", "!secrets/**", "--", query, target], repoRoot));
 });
 
-server.tool("get_git_status", "Return the current branch and complete non-sensitive working-tree status.", {}, {title: "Get Git status", ...inspectLocal}, async () => {
+server.registerTool("get_git_status", {
+  title: "Get Git status",
+  description: "Return the current branch and complete non-sensitive working-tree status.",
+  inputSchema: {},
+  outputSchema: commandOut,
+  annotations: inspectLocal,
+}, async () => {
   const status = runAllowed("git", ["status", "--short", "--branch", "--untracked-files=all"], repoRoot);
   return result({...status, stdout: visibleGitLines(status.stdout).join("\n")});
 });
 
-server.tool("inspect_flake", "Inspect flake outputs using the read-only nix flake show command.", {}, {title: "Inspect flake outputs", ...inspectNetworked}, async () => {
+server.registerTool("inspect_flake", {
+  title: "Inspect flake outputs",
+  description: "Inspect flake outputs using the read-only nix flake show command.",
+  inputSchema: {},
+  outputSchema: commandOut,
+  annotations: inspectNetworked,
+}, async () => {
   return result(runAllowed("nix", ["flake", "show", "--json", "."], repoRoot, 120_000));
 });
 
-server.tool("audit_documentation", "Audit tracked Markdown documentation for stale legacy claims, missing repository paths, and undocumented MCP tools without modifying the checkout. Findings carry kind 'missing-path', 'stale-reference', or 'mcp-documentation', and valid is false whenever any finding is present.", {}, {title: "Audit documentation", ...inspectLocal}, async () => {
+server.registerTool("audit_documentation", {
+  title: "Audit documentation",
+  description: "Audit tracked Markdown documentation for stale legacy claims, missing repository paths, and undocumented MCP tools without modifying the checkout. Findings carry kind 'missing-path', 'stale-reference', or 'mcp-documentation', and valid is false whenever any finding is present.",
+  inputSchema: {},
+  outputSchema: auditOut,
+  annotations: inspectLocal,
+}, async () => {
   return result(await auditDocumentation());
 });
 
-server.tool("validate_mcp", "Run the fixed repository MCP test suite without accepting command arguments or modifying the checkout.", {}, {title: "Run the MCP test suite", ...inspectLocal}, async () => {
+server.registerTool("validate_mcp", {
+  title: "Run the MCP test suite",
+  description: "Run the fixed repository MCP test suite without accepting command arguments or modifying the checkout.",
+  inputSchema: {},
+  outputSchema: commandOut,
+  annotations: inspectLocal,
+}, async () => {
   return result(runFixed("bun", ["test", "mcp"], repoRoot, 300_000));
 });
 
-server.tool("validate_repository", "Run the bounded documentation audit, MCP test suite, and read-only Nix flake check as separate results.", {}, {title: "Validate the repository", ...inspectNetworked}, async () => {
+server.registerTool("validate_repository", {
+  title: "Validate the repository",
+  description: "Run the bounded documentation audit, MCP test suite, and read-only Nix flake check as separate results.",
+  inputSchema: {},
+  outputSchema: repositoryValidationOut,
+  annotations: inspectNetworked,
+}, async () => {
   return result({
     kind: "repository-validation",
     documentation: await auditDocumentation(),
@@ -607,18 +744,30 @@ server.tool("validate_repository", "Run the bounded documentation audit, MCP tes
   });
 });
 
-server.tool("prepare_working_tree_commit", "Prepare the complete visible dirty working tree for review; returns a diff and approval hash without modifying the checkout. Unlike every other tool, this snapshot may include secrets/** and the public template vps/web-research/.env.example, and it fails as a whole if any dirty path is a symlink, a private key, or a ':'-prefixed Git pathspec name.", {}, {title: "Prepare a working-tree commit", ...prepareLocal}, async () => {
+server.registerTool("prepare_working_tree_commit", {
+  title: "Prepare a working-tree commit",
+  description: "Prepare the complete visible dirty working tree for review; returns a diff and approval hash without modifying the checkout. Unlike every other tool, this snapshot may include secrets/** and the public template vps/web-research/.env.example, and it fails as a whole if any dirty path is a symlink, a private key, or a ':'-prefixed Git pathspec name.",
+  inputSchema: {},
+  outputSchema: workingTreeSummaryOut,
+  annotations: prepareLocal,
+}, async () => {
   return result(workingTreeOperationSummary(await createWorkingTreeOperation()));
 });
 
-server.tool("git_commit_working_tree", "Commit the reviewed working tree one file per commit after rechecking the exact approved snapshot. Requires prepare_working_tree_commit and no apply step. Each file requires its own message; all reviewed paths must be represented, and no other path may be committed. Subjects end with a period.", {
+server.registerTool("git_commit_working_tree", {
+  title: "Commit the reviewed working tree",
+  description: "Commit the reviewed working tree one file per commit after rechecking the exact approved snapshot. Requires prepare_working_tree_commit and no apply step. Each file requires its own message; all reviewed paths must be represented, and no other path may be committed. Subjects end with a period.",
+  inputSchema: {
   operationId: z.string().describe("Operation ID from prepare_working_tree_commit. No apply step is involved."),
   approvalHash: z.string().describe("Approval hash returned with that operation ID; rechecked against the snapshot before staging."),
   commits: z.array(z.object({
     path: z.string().min(1).describe("One reviewed path from the prepare result. Every reviewed path must appear exactly once; missing, extra, or duplicated paths are rejected."),
     message: z.string().min(1).max(4096).describe("Commit subject ending with a period. Any further line must be a valid 'Co-authored-by: Name <email>' trailer. Screened as argv, so avoid a semicolon anywhere in the message."),
   })).min(1),
-}, {title: "Commit the reviewed working tree", ...modifyAdditive}, async ({operationId, approvalHash, commits}) => {
+},
+  outputSchema: commitResultOut,
+  annotations: modifyAdditive,
+}, async ({operationId, approvalHash, commits}) => {
   const operation = getWorkingTreeOperation(operationId, approvalHash);
   for (const entry of commits) {
     if (!validCommitMessage(entry.message)) fail("Commit messages must have a sentence-style subject ending with a period; optional lines may be valid Co-authored-by trailers.");
@@ -661,6 +810,7 @@ server.tool("git_commit_working_tree", "Commit the reviewed working tree one fil
   const partial = results.some((commit) => commit.status === 0) && results.length < requestedPaths.length;
   if (ok) workingTreeOperations.delete(operationId);
   return result({
+    kind: "commit-result",
     ok,
     partial,
     operationId,
@@ -672,7 +822,13 @@ server.tool("git_commit_working_tree", "Commit the reviewed working tree one fil
   });
 });
 
-server.tool("prepare_patch", "Prepare exact file contents against the current checkout without modifying it; the returned operation requires approval before application with apply_approved_patch. Set content to null to delete a file.", {changes: z.array(changeSchema).min(1)}, {title: "Prepare a file patch", ...prepareLocal}, async ({changes}) => {
+server.registerTool("prepare_patch", {
+  title: "Prepare a file patch",
+  description: "Prepare exact file contents against the current checkout without modifying it; the returned operation requires approval before application with apply_approved_patch. Set content to null to delete a file.",
+  inputSchema: {changes: z.array(changeSchema).min(1)},
+  outputSchema: operationOut,
+  annotations: prepareLocal,
+}, async ({changes}) => {
   if (changes.length > maxOperationPaths) fail(`A patch may contain at most ${maxOperationPaths} paths.`);
   const preparedChanges: Change[] = [];
   const seen = new Set<string>();
@@ -691,7 +847,13 @@ server.tool("prepare_patch", "Prepare exact file contents against the current ch
   return result({...operationSummary(operation), diff: operation.changes.map(unifiedDiff).join("\n")});
 });
 
-server.tool("prepare_format", "Run the flake formatter in a temporary isolated workspace and return a reviewable patch without modifying the checkout.", {paths: z.array(z.string()).default([]).describe("Nix files to format. An empty list formats every tracked and untracked .nix file. Reports only a message when formatting changes nothing.")}, {title: "Prepare a formatter patch", ...prepareNetworked}, async ({paths}) => {
+server.registerTool("prepare_format", {
+  title: "Prepare a formatter patch",
+  description: "Run the flake formatter in a temporary isolated workspace and return a reviewable patch without modifying the checkout.",
+  inputSchema: {paths: z.array(z.string()).default([]).describe("Nix files to format. An empty list formats every tracked and untracked .nix file. Reports only a message when formatting changes nothing.")},
+  outputSchema: preparedOrNoopOut,
+  annotations: prepareNetworked,
+}, async ({paths}) => {
   const workspace = await createWorkspace();
   try {
     const formatted = runAllowed("nix", ["fmt", "."], workspace, 120_000);
@@ -707,7 +869,13 @@ server.tool("prepare_format", "Run the flake formatter in a temporary isolated w
   }
 });
 
-server.tool("prepare_flake_lock_update", "Update flake.lock in a temporary isolated workspace and return only that file's reviewable patch.", {}, {title: "Prepare a flake.lock update", ...prepareNetworked}, async () => {
+server.registerTool("prepare_flake_lock_update", {
+  title: "Prepare a flake.lock update",
+  description: "Update flake.lock in a temporary isolated workspace and return only that file's reviewable patch.",
+  inputSchema: {},
+  outputSchema: preparedOrNoopOut,
+  annotations: prepareNetworked,
+}, async () => {
   const workspace = await createWorkspace();
   try {
     const updated = runAllowed("nix", ["flake", "update", "--flake", workspace], workspace, 300_000);
@@ -721,7 +889,13 @@ server.tool("prepare_flake_lock_update", "Update flake.lock in a temporary isola
   }
 });
 
-server.tool("validate_flake", "Run the read-only flake check on the checkout, or on a prepared patch, format, or flake-lock operation without applying it. Omitting both arguments validates the current checkout; a prepare_working_tree_commit ID is not eligible here.", {operationId: z.string().optional().describe("A patch, format, or flake-lock operation ID. A working-tree operation ID is not resolvable here and reports as invalid or stale."), approvalHash: z.string().optional().describe("Required together with operationId; an approval hash alone is rejected.")}, {title: "Validate the flake", ...inspectNetworked}, async ({operationId, approvalHash}) => {
+server.registerTool("validate_flake", {
+  title: "Validate the flake",
+  description: "Run the read-only flake check on the checkout, or on a prepared patch, format, or flake-lock operation without applying it. Omitting both arguments validates the current checkout; a prepare_working_tree_commit ID is not eligible here.",
+  inputSchema: {operationId: z.string().optional().describe("A patch, format, or flake-lock operation ID. A working-tree operation ID is not resolvable here and reports as invalid or stale."), approvalHash: z.string().optional().describe("Required together with operationId; an approval hash alone is rejected.")},
+  outputSchema: commandOut,
+  annotations: inspectNetworked,
+}, async ({operationId, approvalHash}) => {
   if (!operationId && approvalHash) fail("An approval hash requires an operation ID.");
   if (!operationId) return result(runAllowed("nix", ["flake", "check", "--no-build", "--show-trace"], repoRoot, 300_000));
   if (!approvalHash) fail("An approval hash is required to validate a prepared operation.");
@@ -742,7 +916,13 @@ server.tool("validate_flake", "Run the read-only flake check on the checkout, or
   }
 });
 
-server.tool("apply_approved_patch", "Apply an exact prepared operation after its ID and approval hash have been reviewed.", {operationId: z.string().describe("Operation ID returned by a prepare tool."), approvalHash: z.string().describe("Approval hash returned with that operation ID; both are rechecked before any write.")}, {title: "Apply an approved patch", ...modifyDestructive}, async ({operationId, approvalHash}) => {
+server.registerTool("apply_approved_patch", {
+  title: "Apply an approved patch",
+  description: "Apply an exact prepared operation after its ID and approval hash have been reviewed.",
+  inputSchema: {operationId: z.string().describe("Operation ID returned by a prepare tool."), approvalHash: z.string().describe("Approval hash returned with that operation ID; both are rechecked before any write.")},
+  outputSchema: applyOut,
+  annotations: modifyDestructive,
+}, async ({operationId, approvalHash}) => {
   const operation = getOperation(operationId, approvalHash);
   await ensureOperationCurrent(operation);
   for (const change of operation.changes) {
@@ -756,7 +936,13 @@ server.tool("apply_approved_patch", "Apply an exact prepared operation after its
   return result({applied: true, ...operationSummary(operation)});
 });
 
-server.tool("prepare_commits", "Suggest a one-sentence commit subject per changed file for a prepared operation that has already been applied with apply_approved_patch (verb + path, e.g. 'Add compatibility for non-agent editing.'). Writes no commits and rejects a working-tree operation; edit each subject before passing it to git_commit_files.", {operationId: z.string().describe("Operation ID from a prepare tool, already applied with apply_approved_patch."), approvalHash: z.string().describe("Approval hash returned with that operation ID.")}, {title: "Suggest commit subjects", ...inspectLocal}, async ({operationId, approvalHash}) => {
+server.registerTool("prepare_commits", {
+  title: "Suggest commit subjects",
+  description: "Suggest a one-sentence commit subject per changed file for a prepared operation that has already been applied with apply_approved_patch (verb + path, e.g. 'Add compatibility for non-agent editing.'). Writes no commits and rejects a working-tree operation; edit each subject before passing it to git_commit_files.",
+  inputSchema: {operationId: z.string().describe("Operation ID from a prepare tool, already applied with apply_approved_patch."), approvalHash: z.string().describe("Approval hash returned with that operation ID.")},
+  outputSchema: commitSuggestionsOut,
+  annotations: inspectLocal,
+}, async ({operationId, approvalHash}) => {
   const operation = getOperation(operationId, approvalHash);
   await ensureOperationCurrent({...operation, changes: operation.changes.map((change) => ({...change, before: change.after, beforeHash: change.afterHash}))});
   const commits = operation.changes.map((change) => {
@@ -771,10 +957,16 @@ server.tool("prepare_commits", "Suggest a one-sentence commit subject per change
   return result({kind: "commit-suggestions", operationId, approvalHash, commits});
 });
 
-server.tool("git_commit_files", "After review, create explicitly approved one-file commits for a prepared operation that has already been applied with apply_approved_patch; rejects unrelated dirty paths. Subjects end with a period.", {operationId: z.string().describe("Operation ID from a prepare tool, already applied with apply_approved_patch."), approvalHash: z.string().describe("Approval hash returned with that operation ID."), commits: z.array(z.object({
+server.registerTool("git_commit_files", {
+  title: "Commit prepared files",
+  description: "After review, create explicitly approved one-file commits for a prepared operation that has already been applied with apply_approved_patch; rejects unrelated dirty paths. Subjects end with a period.",
+  inputSchema: {operationId: z.string().describe("Operation ID from a prepare tool, already applied with apply_approved_patch."), approvalHash: z.string().describe("Approval hash returned with that operation ID."), commits: z.array(z.object({
     path: z.string().describe("One path from the prepared operation, which must already have been applied with apply_approved_patch."),
     message: z.string().min(1).max(4096).describe("Commit subject ending with a period. Any further line must be a valid 'Co-authored-by: Name <email>' trailer. Screened as argv, so avoid a semicolon anywhere in the message."),
-  })).min(1)}, {title: "Commit prepared files", ...modifyAdditive}, async ({operationId, approvalHash, commits}) => {
+  })).min(1)},
+  outputSchema: commitResultOut,
+  annotations: modifyAdditive,
+}, async ({operationId, approvalHash, commits}) => {
   const operation = getOperation(operationId, approvalHash);
   await ensureOperationCurrent({...operation, changes: operation.changes.map((change) => ({...change, before: change.after, beforeHash: change.afterHash}))});
   const expected = new Set(operation.changes.map((change) => change.path));
@@ -801,6 +993,7 @@ server.tool("git_commit_files", "After review, create explicitly approved one-fi
   const partial = results.some((commit) => commit.status === 0) && results.length < normalizedCommits.length;
   if (ok) operations.delete(operationId);
   return result({
+    kind: "commit-result",
     ok,
     partial,
     beforeStatus: status,
