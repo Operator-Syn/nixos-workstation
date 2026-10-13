@@ -1,49 +1,8 @@
 {
   pkgs,
-  lib,
   pkgsUnstable,
   ...
-}: let
-  # nixpkgs' `codex` builds from source and lags behind upstream's rapid
-  # release cadence (needs newer librusty_v8/webrtc pins to bump). OpenAI
-  # publishes prebuilt static musl binaries on npm under the main package
-  # name with a platform-suffixed version, which is what editor extensions
-  # (e.g. VS Code's ChatGPT extension) bundle. Use that directly instead.
-  codex-bin = pkgs.stdenv.mkDerivation rec {
-    pname = "codex";
-    version = "0.159.2";
-
-    src = pkgs.fetchurl {
-      url = "https://registry.npmjs.org/@openai/codex/-/codex-${version}-linux-x64.tgz";
-      hash = "sha256-hKazX7Rb3LlM75/LMpQ4BFqJEfU4dsyamn5vm7E4Lro=";
-    };
-
-    nativeBuildInputs = [pkgs.makeBinaryWrapper];
-
-    unpackPhase = ''
-      tar xzf $src
-    '';
-
-    installPhase = ''
-      runHook preInstall
-      install -Dm755 package/vendor/x86_64-unknown-linux-musl/bin/codex $out/bin/codex
-      install -Dm755 package/vendor/x86_64-unknown-linux-musl/bin/codex-code-mode-host $out/bin/codex-code-mode-host
-      runHook postInstall
-    '';
-
-    postFixup = ''
-      wrapProgram $out/bin/codex --prefix PATH : ${lib.makeBinPath [pkgs.ripgrep pkgs.bubblewrap]}
-    '';
-
-    meta = {
-      description = "OpenAI Codex CLI (prebuilt static binary)";
-      homepage = "https://github.com/openai/codex";
-      license = lib.licenses.asl20;
-      platforms = ["x86_64-linux"];
-      mainProgram = "codex";
-    };
-  };
-in {
+}: {
   home.packages = with pkgs; [
     bat
     biome
@@ -67,7 +26,6 @@ in {
     ]))
     # pipenv
     claude-code
-    codex-bin
     pkgsUnstable.opencode
     vlc
     zoxide
