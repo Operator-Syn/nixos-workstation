@@ -58,5 +58,18 @@
     };
   };
 
+  # The userspace driver (libcuda.so.1) is installed under
+  # /run/opengl-driver/lib, which is not on the dynamic loader search path for
+  # "foreign" (non-Nix) ELF binaries. The uv-managed CPython that runs
+  # TensorFlow and JupyterLab is such a binary, so it cannot dlopen libcuda.so.1
+  # even though nvidia-smi (a Nix binary carrying its own RUNPATH) works.
+  #
+  # nix-ld is NixOS's designed extension point for foreign binaries. Adding the
+  # driver's userspace libraries here puts them on the loader path for foreign
+  # binaries only; Nix binaries keep their own RPATHs and are untouched, so no
+  # global LD_LIBRARY_PATH is needed. libcuda.so.1 resolves its sibling driver
+  # libraries through its own RUNPATH into this same package.
+  programs.nix-ld.libraries = [config.hardware.nvidia.package];
+
   hardware.nvidia-container-toolkit.enable = true;
 }
