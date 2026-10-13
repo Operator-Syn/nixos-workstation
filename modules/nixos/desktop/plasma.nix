@@ -14,6 +14,7 @@
   };
 
   security.rtkit.enable = true;
+  users.groups.video.members = [ "sddm" ];
 
   # Plasma exposes this D-Bus service in its power UI. It is the sole owner of
   # the generic kernel platform profile; ASUS-specific controls stay in asusd.
