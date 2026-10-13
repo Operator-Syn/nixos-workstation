@@ -51,15 +51,31 @@ configuration.
 | `git_commit_files` | Create approved one-file commits and reject unrelated dirty paths | Approval required |
 | `git_commit_working_tree` | Commit the exact reviewed working-tree snapshot, one commit per file | Approval required |
 
+Every tool declares a `title` and MCP `ToolAnnotations`, so a client can classify the
+surface without parsing prose. The groups mirror the Authority column above: read-only
+inspection (`readOnlyHint` and `idempotentHint`), prepare-only (`readOnlyHint` with
+`idempotentHint` false, because each call mints a new operation), and the token-gated
+mutations. `destructiveHint` is set only on `apply_approved_patch`, which can delete files;
+commits are additive to history. `openWorldHint` marks the tools that may reach the network
+through locked flake inputs. Every payload also carries a `kind` discriminator — `command`
+for a raw process envelope with `status`, `stdout`, and `stderr`, `no-op` for a prepare tool
+that found nothing to do, the operation kind for a prepared operation, and a descriptive
+name such as `documentation-audit` or `project-overview` for read results. Failures are MCP
+errors rather than payloads.
+
 Prepare tools return an operation ID, approval hash, file hashes, and a diff.
 `prepare_patch` compares against the current checkout directly; formatting and
 lock updates use temporary isolated workspaces. Applying a patch requires the
 exact operation ID and approval hash, and rechecks targeted files before writing.
 Prepared operations retain bounded file content only: at most 128 paths and 8
 MiB of stored content per operation. The server keeps at most 16 operations of
-each kind, expires stale operations after 30 minutes, and removes an operation
-after its approved commit completes. A rejected or partial operation remains
-available for retry until it expires.
+each kind, oldest first, and drops any operation older than 30 minutes as soon as
+another operation is created or read — liveness is checked lazily, not by a timer.
+A *rejected* operation stays reusable until it expires. A *partial* commit is not
+reusable, for either commit path. The working-tree path leaves the reviewed
+snapshot stale and needs a fresh `prepare_working_tree_commit`; the applied-patch
+path has already committed some of its paths, so re-running it fails on the paths
+whose changes are now empty.
 
 The commit tools operate after a prepared operation has been applied, except for
 `prepare_working_tree_commit` and `git_commit_working_tree`. The latter pair is
@@ -110,6 +126,13 @@ include secret changes only after an explicit reviewed snapshot. Temporary
 workspaces also exclude denied paths. Prepared operations fail
 when a targeted file changes; commit operations additionally reject unrelated
 dirty paths.
+
+The argument screen is separate from path policy and applies to every tool: any
+argument containing `;`, `sudo`, or `nixos-rebuild` is rejected as a substring
+before a command is spawned, because user-supplied text becomes argv. Commit
+subjects, paths, and search patterns are therefore screened too. The rejection
+names both the token and the argument. `read_authority_contract` returns the same
+rules as `argumentGuards` and the full `protectedPaths` list.
 
 Protected user state and vault plans remain outside MCP mutation targets. The
 shared vault and runtime credentials are separate authority domains; MCP does
