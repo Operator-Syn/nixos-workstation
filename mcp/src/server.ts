@@ -470,8 +470,14 @@ async function auditDocumentation() {
   const listed = runAllowed("git", ["ls-files", "--cached", "--others", "--exclude-standard"], repoRoot);
   if (listed.status !== 0) return {kind: "documentation-audit", valid: false, filesScanned: 0, findings: [{kind: "stale-reference", path: "", message: listed.stderr || "Could not list repository files."}]};
 
-  const markdownPaths = visibleGitLines(listed.stdout, 0)
+  const listedFiles = visibleGitLines(listed.stdout, 0);
+  const markdownPaths = listedFiles
     .filter((path) => path.endsWith(".md") && path !== "AGENTS.md" && !path.startsWith(".codex/") && !path.startsWith("secrets/"));
+  // A documented path is a claim about THIS repository only when some candidate's first
+  // segment is a real top-level entry. Vault-relative (`.obsidian/graph.json`) and
+  // home-relative (`share/applications`) references point outside the repo, so flagging
+  // them invents a finding. A stale reference under a real directory is still caught.
+  const topLevelEntries = new Set(listedFiles.map((entry) => entry.split("/")[0]));
   const findings: DocumentationFinding[] = [];
   const staleReferences = [
     {pattern: /ACL reconciliation|home-acl-reconcile|services\.homeAcl/i, message: "Documentation references removed ACL reconciliation wiring."},
@@ -493,7 +499,9 @@ async function auditDocumentation() {
         if (/^\d{1,3}(\.\d{1,3}){3}(\/\d{1,2})?$/.test(candidate)) continue;
         const candidates = [candidate];
         if (path.startsWith("modules/") && !candidate.startsWith("modules/")) candidates.push(`modules/nixos/${candidate}`);
-        const exists = candidates.some((value) => {
+        const claims = candidates.filter((value) => topLevelEntries.has(value.split("/")[0]));
+        if (claims.length === 0) continue;
+        const exists = claims.some((value) => {
           let relativePath: string;
           try {
             relativePath = safeRelativePath(value);
