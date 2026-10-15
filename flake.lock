@@ -26,16 +26,16 @@
     "bedrock-on-linux": {
       "flake": false,
       "locked": {
-        "lastModified": 1788198741,
-        "narHash": "sha256-oaPH0C18WaWqnZvBETlQcDwHSYZCVxj9IY7SpUaO1XU=",
+        "lastModified": 1791581971,
+        "narHash": "sha256-x2+gPYmHH8RhtGxbdfqCxDauWw5nPmbdOuSxIsMjRzM=",
         "owner": "Wyze3306",
         "repo": "BedrockOnLinux",
-        "rev": "e926c72790fd347fee415fdf2d6d3322da846d88",
+        "rev": "23ed301be0e38afbd91eacebdf87240d8731d60c",
         "type": "github"
       },
       "original": {
         "owner": "Wyze3306",
-        "ref": "v2.2.5",
+        "ref": "v2.2.9",
         "repo": "BedrockOnLinux",
         "type": "github"
       }
