@@ -180,6 +180,28 @@ Mnemosyne 3.15.1, not a Hermes upstream command. Existing subcommands stay with
 the provider, and a future native `reindex` takes precedence. Re-test the adapter
 when updating either Hermes or the external provider.
 
+Embedding-model selection needs one provider-side adjustment that the `.pth`
+composition cannot make on its own. The provider reads
+`MNEMOSYNE_EMBEDDING_MODEL` and `MNEMOSYNE_EMBEDDING_DIM` only at import time, and
+Mnemosyne's own config loader classes those keys as `REQUIRES_RESTART`, so a model
+configured in Hermes `config.yaml` or in `mnemosyne/config.yaml` never reaches an
+imported module. Recall and every new vector then fall back to the package default
+(`BAAI/bge-small-en-v1.5`, 384-dim), which against a store built at 768-dim fails
+dense recall with a dimension mismatch and stores vectors the vec tables cannot
+accept. `home/yashindo/apps/hermes/` therefore tracks
+`mnemosyne-embedding-env-bridge.patch` and `embedding_env_bridge.py`; activation
+installs the module beside the provider and applies the patch to the provider's two
+entry-point files — `__init__.py` for the in-process provider and `cli.py` for
+`hermes mnemosyne`, which do not import each other. This is the one exception to
+"the provider venv is not changed": those two files are edited, not the provider
+package and not its databases. The step is sentinel-guarded because it edits
+mutable state on every activation, and it runs after the path-order step whose
+`sys.path.append` rewrite forms the patch context. If the patch cannot apply after
+a provider upgrade, activation warns rather than failing; dense recall then embeds
+at the package default until the patch is refreshed. Activation and a Hermes
+restart remain user-owned, and the live model is only proven by a recall that
+returns hits rather than a dimension error.
+
 `hermes mnemosyne reindex --dry-run` reports the resolved database, active model,
 dimension and working/episodic counts through a read-only SQLite connection,
 without initializing/migrating the provider or creating a missing database.
