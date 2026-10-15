@@ -24,6 +24,7 @@
 
     ../../modules/nixos/hardware/bluetooth.nix
     ../../modules/nixos/hardware/asus.nix
+    ../../modules/nixos/hermes.nix
 
     ../../modules/nixos/networking.nix
     ../../modules/nixos/openssh.nix

@@ -313,6 +313,35 @@
         done
       '';
 
+      # Mnemosyne memories must persist across sessions. The provider resolves
+      # memory.mnemosyne.default_scope from Hermes config.yaml first and then
+      # from the Mnemosyne config file, and the Mnemosyne config singleton for
+      # EVERY profile resolves to the ROOT instance
+      # (${hermesHome}/mnemosyne/config.yaml) -- per-profile mnemosyne/ dirs are
+      # not read, and Hermes' /etc/hermes managed scope is not on this path. So
+      # the value has to be asserted in the Mnemosyne config files themselves,
+      # which also covers every future profile (they share the root instance).
+      # Idempotent, and a failure warns instead of blocking an unrelated rebuild.
+      home.activation.hermesMnemosyneDefaultScope = lib.hm.dag.entryAfter ["writeBoundary"] ''
+        for cfg in "${config.services.hermes-agent.hermesHome}/mnemosyne/config.yaml" \
+                   "${config.services.hermes-agent.hermesHome}"/profiles/*/mnemosyne/config.yaml; do
+          [[ -f "$cfg" ]] || continue
+          ${pkgs.python3}/bin/python3 - "$cfg" <<'PY'
+        from pathlib import Path
+        import sys
+
+        path = Path(sys.argv[1])
+        lines = path.read_text().splitlines(keepends=True)
+        for index, line in enumerate(lines):
+            if line.startswith("default_scope:"):
+                if line.strip() != "default_scope: global":
+                    lines[index] = "default_scope: global\n"
+                    path.write_text("".join(lines))
+                break
+        PY
+        done
+      '';
+
       programs.hermes-agent.enable = true;
       programs.hermes-agent.package = hermesCliPackage;
       programs.hermes-agent.desktop = {
