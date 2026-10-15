@@ -75,8 +75,8 @@ in {
   config = lib.mkIf config.modules.steam.enable {
     modules.steam.protontricks.enable = lib.mkDefault true;
 
-    programs.anime-game-launcher.enable = true;
-    programs.honkers-railway-launcher.enable = true;
+    programs.anime-game-launcher.enable = false;
+    programs.honkers-railway-launcher.enable = false;
 
     programs.steam = {
       enable = true;
@@ -175,13 +175,15 @@ in {
       cabextract
       p7zip
 
-      (writeShellScriptBin "genshin-launcher" ''
-        exec nvidia-offload ${anime-game-launcher}/bin/anime-game-launcher "$@"
-      '')
-
-      (writeShellScriptBin "hsr-launcher" ''
-        exec nvidia-offload ${honkers-railway-launcher}/bin/honkers-railway-launcher "$@"
-      '')
+      # The launchers declared above are disabled, so neither wrapper is
+      # installed. Uncomment both entries to restore the commands.
+      # (writeShellScriptBin "genshin-launcher" ''
+      #   exec nvidia-offload ${anime-game-launcher}/bin/anime-game-launcher "$@"
+      # '')
+      #
+      # (writeShellScriptBin "hsr-launcher" ''
+      #   exec nvidia-offload ${honkers-railway-launcher}/bin/honkers-railway-launcher "$@"
+      # '')
     ];
   };
 }
