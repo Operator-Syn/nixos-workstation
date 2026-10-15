@@ -277,6 +277,42 @@
         done
       '';
 
+      # The provider reads its embedding model from the environment at import
+      # time, and Mnemosyne's config loader classes those keys as
+      # REQUIRES_RESTART, so a model configured in Hermes config or in
+      # mnemosyne/config.yaml never reaches an already-imported module. Every
+      # recall then embedded at the package default (384-dim) against store
+      # tables built at 768-dim, failing dense recall with a dimension mismatch
+      # and storing new vectors the vec tables cannot accept. The tracked patch
+      # and module below make the configured model reach the provider's
+      # environment first — for both entry points, the provider and the
+      # `hermes mnemosyne` CLI, which do not import each other.
+      #
+      # This edits mutable user state on every activation, so it is
+      # sentinel-guarded and runs after hermesMnemosynePathOrder: the patch
+      # context is that step's `sys.path.append` rewrite. A failed application
+      # warns instead of failing activation, because third-party venv drift must
+      # not block an unrelated rebuild; --batch keeps the step non-interactive,
+      # and --reject-file=- with --no-backup-if-mismatch keeps a rejected hunk
+      # from leaving .rej/.orig debris in the provider venv.
+      home.activation.hermesMnemosyneEmbeddingBridge = lib.hm.dag.entryAfter ["hermesMnemosynePathOrder"] ''
+        for site in "${config.home.homeDirectory}"/.local/venvs/mnemosyne/lib/python*/site-packages; do
+          provider="$site/hermes_memory_provider"
+          [[ -d "$provider" ]] || continue
+          ${pkgs.coreutils}/bin/install -m 0444 \
+            ${./hermes/embedding_env_bridge.py} "$provider/embedding_env_bridge.py"
+          if ${pkgs.gnugrep}/bin/grep -q -e embedding_env_bridge "$provider/__init__.py"; then
+            continue
+          fi
+          if ! ${pkgs.patch}/bin/patch --batch --fuzz=0 -p1 \
+            --reject-file=- --no-backup-if-mismatch -d "$site" \
+            < ${./hermes/mnemosyne-embedding-env-bridge.patch}; then
+            echo "WARNING: the Mnemosyne embedding bridge patch did not apply to $provider." >&2
+            echo "WARNING: dense recall embeds at the package default model until that patch applies." >&2
+          fi
+        done
+      '';
+
       programs.hermes-agent.enable = true;
       programs.hermes-agent.package = hermesCliPackage;
       programs.hermes-agent.desktop = {
