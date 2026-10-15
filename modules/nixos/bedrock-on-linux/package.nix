@@ -26,7 +26,7 @@
     ]);
   unwrapped = stdenvNoCC.mkDerivation {
     pname = "bedrock-on-linux";
-    version = "2.2.5";
+    version = "2.2.9";
     src = bedrockSource;
 
     dontConfigure = true;
@@ -116,7 +116,7 @@
 in
   steam.buildRuntimeEnv {
     pname = "bedrock-on-linux";
-    version = "2.2.5";
+    version = "2.2.9";
     executableName = "bedrock-on-linux";
     runScript = lib.getExe unwrapped;
     extraPkgs = _: [libxcomposite unwrapped];
