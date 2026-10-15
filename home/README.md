@@ -385,3 +385,57 @@ corner on first use and refreshes its command configuration, but never sets its
 geometry afterwards: move the widget by pressing and holding it before dragging,
 and Plasma keeps that position across reboots and rebuilds while other desktop
 widgets stay untouched.
+
+## EasyEffects Microphone Chain
+
+`home/yashindo/apps/easyeffects-module.nix` gives microphone processing a
+semi-declarative starting point. Two pieces must both be in place for the chain
+to reach a recording application:
+
+| Piece | Location | Written by |
+| --- | --- | --- |
+| Input preset: chain order and values | `~/.local/share/easyeffects/input/Wireless-Mic-Noise-Cancel.json` | Seeded by activation, then user-owned |
+| Routing preference and capture device | `~/.config/easyeffects/db/easyeffectsrc` | Seeded by activation when absent, then rewritten by EasyEffects |
+
+Each file is written only when it is missing, and with mode `0644`, so
+EasyEffects can save to it. Do not move this starter set to
+`services.easyeffects.extraPresets`: that option publishes presets through
+`xdg.dataFile`, which links them read-only into the Nix store, so EasyEffects
+cannot save, rename or delete a preset through the link.
+
+The starter values are Autogain, Gate, Deep noise remover and Noise reduction on
+the input pipeline, with `processAllInputs` enabled so recording applications are
+moved onto `Easy Effects Source`. The wireless microphone is the capture device;
+the onboard microphone stays unused. Deep noise remover reports realtime
+underruns on Hiraeth (`deep_filter_ladspa ... Processing too slow!`) plus
+clipping warnings; the starter set keeps it to match the current configuration,
+and it can be disabled in the plugin window for a chain that holds realtime.
+
+After the first activation those files belong to EasyEffects. Tune any value in
+the plugin window and save the preset, or change a preference in Settings, and
+later rebuilds leave the file alone. To return to the starter state, delete the
+seeded file and run the Home Manager activation again. The module seeds this
+state at activation; it was not activated when it was added, and on a profile
+where the files already exist every seed step is a no-op.
+
+The module seeds no autoload profile, on purpose. An autoload profile binds a
+device to a literal `preset-name`, which pins the chain and overrides the preset
+chosen last in the GUI. EasyEffects instead restores `[Presets]
+lastLoadedInputPreset` from `~/.config/easyeffects/db/easyeffectsrc` at startup,
+so the preset picked last is the one that loads next. Replacing the wireless
+receiver changes the node name, so update `micDevice` in the module; there is no
+autoload file to delete.
+
+The service is ordered against the PipeWire daemon: the module sets
+`PartOf=pipewire.service` and `After=pipewire.service`, so a PipeWire restart
+restarts EasyEffects through its own `ExecStop` rather than pulling the
+connection away from it. Without that ordering EasyEffects aborts with a core
+dump on every PipeWire restart — which is every rebuild — and the virtual source
+stays gone until systemd restarts it.
+
+The process also carries raised CPU priority: the module sets `Nice = -19`
+and `CPUWeight = 1000`, so its non-realtime threads outrank ordinary work and
+its cgroup takes a larger share of CPU under contention. The realtime audio
+path does not depend on either — EasyEffects' `data-loop.0` thread runs
+`SCHED_FIFO` at priority 83, above any nice value, and keeps that class with
+these settings applied.
