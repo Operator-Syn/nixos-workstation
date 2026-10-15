@@ -9,7 +9,7 @@
     nixpkgs-unstable.url = "github:nixos/nixpkgs/nixos-unstable";
 
     bedrock-on-linux = {
-      url = "github:Wyze3306/BedrockOnLinux/v2.2.5";
+      url = "github:Wyze3306/BedrockOnLinux/v2.2.9";
       flake = false;
     };
 
