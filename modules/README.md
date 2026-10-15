@@ -159,9 +159,11 @@ KDE's global `AnimationDurationFactor` to `0` and restore the previous value whe
 the last client exits. This keeps the Plasma session's animation policy unchanged
 outside games, and also applies to the manual `gamemode-toggle` request.
 
-The same GameMode hooks stop containers that were already running when GameMode
-started, then start those exact containers again when the last client exits. If
-Docker is unavailable or no containers are running, the hook leaves it unchanged.
+The GameMode hooks no longer touch Docker. An earlier revision stopped every
+running container when GameMode started and restarted those exact containers when
+the last client exited, which also stopped containers unrelated to gaming — for
+example the Arqen stack and the MCP servers a running agent was using. The hooks
+now change only the animation policy described above.
 
 For Steam, the standard per-game launch option is `gamemoderun %command%`. On
 Hiraeth, use `nvrun %command%` when the game should also use NVIDIA PRIME
