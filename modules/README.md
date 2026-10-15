@@ -44,7 +44,7 @@ modules/
 | `openssh.nix` | OpenSSH server with password and root login disabled |
 | `packages.nix` | system-wide packages |
 | `scripts.nix` | `rebuild`, `hermes-restart`, `update-system`, `update-hardware`, `wifi-hotspot`, `nvrun`, `getGPU` |
-| `steam.nix` and `steam/` | Steam, GameMode (including `gamemode-toggle`), gamescope, launchers, and Protontricks support |
+| `steam.nix` and `steam/` | Steam, GameMode (including `gamemode-toggle`), gamescope, the disabled anime-game and Honkers Railway launcher declarations, and Protontricks support |
 | `kvm-manager.nix` | KVM/libvirt services, default network startup, and virt-manager |
 | `virtualisation.nix` | Docker daemon, started on demand through socket activation |
 
@@ -192,6 +192,15 @@ The Steam module also exposes a Steam Gamescope Wayland session through the
 display manager. It uses the pinned NixOS Gamescope defaults and `cap_sys_nice`;
 select it from SDDM when a Gamescope session is desired, while the normal Plasma
 session remains unchanged.
+
+The Steam module also declares the two anime-game launchers, but both are
+disabled: `programs.anime-game-launcher.enable` and
+`programs.honkers-railway-launcher.enable` are `false`, and the
+`genshin-launcher` and `hsr-launcher` `nvidia-offload` wrappers are commented
+out, so neither launcher package is installed or exposed as a command.
+Restoring either one means flipping its flag, uncommenting its wrapper entry,
+and running a user-owned rebuild; the launcher then downloads its game data
+again.
 
 ## Hiraeth ASUS Controls
 
