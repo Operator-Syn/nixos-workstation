@@ -12,8 +12,6 @@
     action="''${1:-}"
     runtime_dir="''${XDG_RUNTIME_DIR:-/run/user/$(${pkgs.coreutils}/bin/id -u)}"
     state_file="$runtime_dir/gamemode-kwin-animations.state"
-    docker_state_file="$runtime_dir/gamemode-docker-containers.state"
-    docker="${pkgs.docker_29}/bin/docker"
     kreadconfig="${pkgs.kdePackages.kconfig}/bin/kreadconfig6"
     kwriteconfig="${pkgs.kdePackages.kconfig}/bin/kwriteconfig6"
     qdbus="${pkgs.qt6Packages.qttools}/bin/qdbus"
@@ -53,50 +51,12 @@
       "${pkgs.coreutils}/bin/rm" -f "$state_file"
     }
 
-    stop_docker_containers() {
-      if [ -e "$docker_state_file" ]; then
-        return 0
-      fi
-
-      if ! running_containers="$("$docker" ps --quiet 2>/dev/null)"; then
-        return 0
-      fi
-      if [ -z "$running_containers" ]; then
-        return 0
-      fi
-
-      "${pkgs.coreutils}/bin/mkdir" -p "$runtime_dir"
-      previous_umask=$(umask)
-      umask 077
-      printf '%s\n' "$running_containers" > "$docker_state_file"
-      umask "$previous_umask"
-
-      while IFS= read -r container; do
-        [ -n "$container" ] || continue
-        "$docker" stop --time 5 "$container" >/dev/null 2>&1 || true
-      done < "$docker_state_file"
-    }
-
-    start_docker_containers() {
-      if [ ! -e "$docker_state_file" ]; then
-        return 0
-      fi
-
-      while IFS= read -r container; do
-        [ -n "$container" ] || continue
-        "$docker" start "$container" >/dev/null 2>&1 || true
-      done < "$docker_state_file"
-      "${pkgs.coreutils}/bin/rm" -f "$docker_state_file"
-    }
-
     case "$action" in
       start)
         suppress_animations
-        stop_docker_containers
         ;;
       end)
         restore_animations
-        start_docker_containers
         ;;
       *)
         printf '%s\n' 'Usage: gamemode-kwin-animations [start|end]' >&2
