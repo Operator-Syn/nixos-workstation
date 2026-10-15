@@ -155,6 +155,21 @@ bun test mcp
 pipenv run python -m unittest discover -s tests
 ```
 
+These three checks are repository-tooling checks, not configuration checks.
+`bun test mcp` exercises the MCP server and the Python suite exercises the
+Graphify, Mnemosyne and Obsidian helpers; none of them reads `modules/`,
+`hosts/`, `home/`, or any NixOS option, so none can observe whether a
+configuration change is correct. A green run means the tooling still works and
+the flake still evaluates, and nothing more.
+
+Configuration changes need their own evidence, because the type system does not
+catch most of them either: `users.users.<name>.extraGroups` is a free-form list
+of strings, so a misspelled group name evaluates cleanly while granting nothing.
+Report the explicit evaluated value for the option that changed, and state
+separately what was never observed. Where an invariant can be expressed, prefer
+an `assertions` entry so removal fails evaluation instead of degrading silently
+at runtime.
+
 Regenerate Graphify separately when source or vault relationships need to be
 refreshed; this is maintenance, not a substitute for validation:
 
