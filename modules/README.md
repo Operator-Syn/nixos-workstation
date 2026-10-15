@@ -60,6 +60,23 @@ before Avahi starts. This handles a dead runtime PID left by a prior service
 reactivation without changing Avahi discovery configuration or persistent
 state.
 
+`desktop/plasma.nix` enables `services.pipewire` and `security.rtkit`, and
+`users/yashindo.nix` puts the user in the `pipewire` group. NixOS's PipeWire
+module mirrors PipeWire's upstream `25-pw-rlimits.conf.in` through
+`security.pam.loginLimits`, granting the `@pipewire` group `rtprio 95`,
+`nice -19` and `memlock`. Those rules reach a session only through `pam_limits`
+at login, so group membership is what actually hands out realtime privileges: a
+user outside the group keeps `RLIMIT_RTPRIO` at 0, PipeWire's `module-rt` clamps
+its own `rt.prio` request to 0, logs `can't set rt prio to 88 (try increasing
+rlimits)`, and falls back to an RTKit-granted nice level for every audio thread
+at `SCHED_OTHER`. Raising the user's nice level alone does not fix this, and
+neither does changing `rt.prio`: the priority value is irrelevant while the
+rlimit is zero. The group must be applied by activation and a fresh login;
+`systemctl --user show -p LimitRTPRIO pipewire` reports 95 once it takes effect,
+and audio threads show `FF`/`RR` in `ps -eLo cls,rtprio,comm` instead of `TS`.
+Adding the group also permits use of a system-wide PipeWire socket, which stays
+disabled here (`services.pipewire.systemWide` is not enabled).
+
 ## Good Module Shape
 
 Optional modules should expose an enable option:
