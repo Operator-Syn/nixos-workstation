@@ -1,0 +1,56 @@
+--- a/hermes_memory_provider/__init__.py
++++ b/hermes_memory_provider/__init__.py
+@@ -70,6 +70,27 @@
+ if str(_mnemosyne_root) not in sys.path:
+     sys.path.append(str(_mnemosyne_root))
+ 
++# ---------------------------------------------------------------------------
++# Embedding-selection bridge — MUST run before any `mnemosyne` import below.
++#
++# mnemosyne.core.embeddings freezes MNEMOSYNE_EMBEDDING_MODEL / _DIM into module
++# constants at import time, and mnemosyne's config loader classes those keys as
++# REQUIRES_RESTART, so the configured model never reaches an imported module:
++# the provider silently ran the package default (384-dim) against store tables
++# built at 768-dim. See embedding_env_bridge.py for the full rationale.
++# ---------------------------------------------------------------------------
++import importlib.util as _importlib_util
++
++_bridge_path = Path(__file__).resolve().parent / "embedding_env_bridge.py"
++_bridge_spec = _importlib_util.spec_from_file_location(
++    "hermes_mnemosyne_embedding_env_bridge", _bridge_path
++)
++if _bridge_spec is not None and _bridge_spec.loader is not None:
++    _bridge_module = _importlib_util.module_from_spec(_bridge_spec)
++    _bridge_spec.loader.exec_module(_bridge_module)
++    _bridge_module.apply()
++
++
+ from mnemosyne.core.episodic_graph import GraphEdge
+ from mnemosyne.core.beam import WORKING_MEMORY_TTL_HOURS
+ from mnemosyne.batch_tool import (
+--- a/hermes_memory_provider/cli.py
++++ b/hermes_memory_provider/cli.py
+@@ -13,6 +13,23 @@
+ if str(_mnemosyne_root) not in sys.path:
+     sys.path.append(str(_mnemosyne_root))
+ 
++# Bridge the configured embedding model into the environment BEFORE any
++# `mnemosyne` import in this module. mnemosyne.core.embeddings freezes
++# MNEMOSYNE_EMBEDDING_MODEL / _DIM into module constants at import time, so a
++# CLI run that skipped this would embed queries at the package default
++# (BAAI/bge-small-en-v1.5, 384-dim) against store tables built at 768-dim and
++# fail every dense recall with a dimension mismatch.
++import importlib.util as _importlib_util
++
++_bridge_path = Path(__file__).resolve().parent / "embedding_env_bridge.py"
++_bridge_spec = _importlib_util.spec_from_file_location(
++    "hermes_mnemosyne_embedding_env_bridge", _bridge_path
++)
++if _bridge_spec is not None and _bridge_spec.loader is not None:
++    _bridge_module = _importlib_util.module_from_spec(_bridge_spec)
++    _bridge_spec.loader.exec_module(_bridge_module)
++    _bridge_module.apply()
++
+ 
+ def register_cli(subparser):
+     """Register CLI subcommands for ``hermes mnemosyne``."""
