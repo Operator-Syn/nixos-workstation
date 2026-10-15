@@ -17,6 +17,18 @@
   # config path (it reads the Hermes/Mnemosyne config files directly), so the
   # home-manager activation `hermesMnemosyneDefaultScope` asserts the same value
   # in the Mnemosyne config files. Keep the two in sync.
+  #
+  # providers.lm-studio: a LAN LM Studio (OpenAI-compatible) custom endpoint
+  # registered here so every profile — existing and future — inherits it without
+  # per-profile wiring. Profiles do NOT inherit ~/.hermes/config.yaml, so the
+  # managed overlay is the only cross-profile seam. Being managed, the pinned
+  # leaves are immutable: change this file (not `hermes config set`) to move it.
+  #
+  # No `models:` catalog and no default `model:` on purpose — this pins only the
+  # endpoint identity, and both are deliberately left unmanaged so they stay
+  # dynamic: `discover_models: true` makes the live server's /v1/models the source
+  # of truth (models may be swapped in LM Studio freely), and each profile can still
+  # set its own default model with `hermes config set providers.lm-studio.model …`.
   environment.etc."hermes/config.yaml".text = ''
     web:
       search_backend: searxng
@@ -24,6 +36,11 @@
     mcp_servers:
       firecrawl:
         url: https://crawl-mcp.yashindo.syn-forge.com/mcp
+    providers:
+      lm-studio:
+        name: LM Studio
+        base_url: http://192.168.1.8:1234/v1
+        discover_models: true
     memory:
       mnemosyne:
         default_scope: global
