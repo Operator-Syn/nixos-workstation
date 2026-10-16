@@ -35,6 +35,8 @@
     ../../modules/nixos/virtualisation.nix
     ../../modules/nixos/steam.nix
     ../../modules/nixos/bedrock-on-linux
+
+    inputs.sops-nix.nixosModules.sops
   ];
 
   nix.settings = inputs.aagl.nixConfig;
