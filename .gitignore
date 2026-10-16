@@ -5,6 +5,9 @@ node_modules/
 .venv/
 graphify-out/
 
+# Nix build result symlinks are local artifacts.
+/result
+
 # Python bytecode caches are build artifacts, not source.
 __pycache__/
 *.py[cod]
